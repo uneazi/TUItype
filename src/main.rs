@@ -7,6 +7,8 @@ use crossterm::{
 use ratatui::{backend::CrosstermBackend, Terminal};
 
 mod app;
+mod models;
+mod storage;
 
 use crate::app::App;
 
@@ -39,7 +41,7 @@ fn main() -> io::Result<()> {
 }
 
 fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<()> {
-    let mut app = App::new();
+    let mut app = App::new().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     loop {
         // Draw UI
@@ -52,9 +54,18 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
                     match key.code {
-                        KeyCode::Char('q') => {
-                            // Quit
+                        KeyCode::Char('`') => {
+                            // Quit (works in both states)
                             break;
+                        }
+                        KeyCode::Char(' ') | KeyCode::Enter => {
+                            // Restart if test is complete
+                            if app.is_complete() {
+                                app.reset();
+                            } else {
+                                // Normal typing: pass space to app
+                                app.on_key(key);
+                            }
                         }
                         _ => {
                             app.on_key(key);
@@ -70,4 +81,3 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
 
     Ok(())
 }
-
