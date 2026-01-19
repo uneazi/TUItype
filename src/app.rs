@@ -5,7 +5,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders, Paragraph, Wrap},
     Frame,
 };
 
@@ -13,6 +13,7 @@ use crate::storage::db::Database;
 use crate::storage::config::ConfigManager;
 use crate::models::{AppConfig, TestResult};
 use chrono::Utc;
+use crate::quotes::{QuoteManager, QuoteMode};
 
 pub enum AppState {
     Testing,
@@ -20,10 +21,11 @@ pub enum AppState {
     History,
 }
 
-const QUOTE: &str = "The quick brown fox jumps over the lazy dog.";
-
 pub struct App {
     quote: String,
+    quote_source: String,
+    pub quote_mode: QuoteMode,
+    quote_manager: QuoteManager,
     typed: String,
     started_at: Option<Instant>,
     last_tick: Instant,
@@ -36,7 +38,7 @@ pub struct App {
     final_duration: Duration,
     pub state: AppState,
     pub db: Database,
-    pub config: AppConfig,
+    pub _config: AppConfig,
     pub last_result: Option<TestResult>,
 }
 
@@ -44,18 +46,27 @@ impl App {
     pub fn new() -> anyhow::Result<Self> {
         let proj_dirs = directories::ProjectDirs::from("", "", "TypingTUI")
             .ok_or_else(|| anyhow::anyhow!("No home dir"))?;
-        
         let data_dir = proj_dirs.data_dir();
         std::fs::create_dir_all(data_dir)?;
-        
         let db_path = data_dir.join("typing.db");
         let db = Database::open(db_path.to_str().unwrap())?;
-        
         let config_mgr = ConfigManager::new()?;
         let config = config_mgr.load()?;
 
+        // Initialize quote manager
+        let quote_manager = QuoteManager::new()?;
+        let quote_mode = QuoteMode::Medium;
+
+        // Get initial quote
+        let quote_obj = quote_manager
+            .get_random_quote(quote_mode)
+            .ok_or_else(|| anyhow::anyhow!("No quotes available"))?;
+
         Ok(Self {
-            quote: QUOTE.to_string(),
+            quote: quote_obj.text.clone(),
+            quote_source: quote_obj.source.clone(),
+            quote_mode,
+            quote_manager,
             typed: String::new(),
             started_at: None,
             last_tick: Instant::now(),
@@ -68,7 +79,7 @@ impl App {
             final_duration: Duration::from_secs(0),
             state: AppState::Testing,
             db,
-            config,
+            _config: config,
             last_result: None,
         })
     }
@@ -155,11 +166,19 @@ impl App {
                 if let Some(start) = self.started_at {
                     self.final_duration = start.elapsed();
                 }
+
+            // Save to database
+            self.finish_test();
             }
         }
     }
 
     pub fn reset(&mut self) {
+        // Get a new random quote
+        if let Some(quote_obj) = self.quote_manager.get_random_quote(self.quote_mode) {
+            self.quote = quote_obj.text.clone();
+            self.quote_source = quote_obj.source.clone();
+        }
         self.typed.clear();
         self.started_at = None;
         self.wpm = 0.0;
@@ -184,89 +203,99 @@ impl App {
         }
     }
 
-    fn draw_typing_screen(&self, frame: &mut Frame) {
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(
-                [
-                    Constraint::Length(3), // header
-                    Constraint::Min(3),    // quote
-                    Constraint::Length(3), // footer
-                ]
-                .as_ref(),
-            )
-            .split(frame.area());
+fn draw_typing_screen(&self, frame: &mut Frame) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Length(3), // header
+                Constraint::Min(3),    // quote
+                Constraint::Length(3), // footer
+            ]
+            .as_ref(),
+        )
+        .split(frame.area());
 
-        // Header: stats
-        let header_text = Line::from(vec![
-            Span::styled(
-                format!(" WPM: {:>5.1}  ", self.wpm),
-                Style::default().fg(Color::Cyan),
-            ),
-            Span::raw(" | "),
-            Span::styled(
-                format!(" Acc: {:>5.1}% ", self.accuracy),
-                Style::default().fg(Color::Yellow),
-            ),
-            Span::raw(" | "),
-            Span::styled(
-                " Press '`' to quit ",
-                Style::default().fg(Color::DarkGray),
-            ),
-        ]);
+    // Header with mode display
+    let mode_str = match self.quote_mode {
+        QuoteMode::Short => "SHORT",
+        QuoteMode::Medium => "MEDIUM",
+        QuoteMode::Long => "LONG",
+    };
 
-        let header = Paragraph::new(header_text).block(
+    let header_text = Line::from(vec![
+        Span::styled(
+            format!(" [{}] ", mode_str),
+            Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" | "),
+        Span::styled(
+            format!(" WPM: {:>5.1} ", self.wpm),
+            Style::default().fg(Color::Cyan),
+        ),
+        Span::raw(" | "),
+        Span::styled(
+            format!(" Acc: {:>5.1}% ", self.accuracy),
+            Style::default().fg(Color::Yellow),
+        ),
+        Span::raw(" | "),
+        Span::styled(
+            " TAB: Mode | Ctrl+H: History | `: Quit ",
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]);
+
+    let header = Paragraph::new(header_text).block(
+        Block::default()
+            .borders(Borders::BOTTOM)
+            .title(" TUItype "),
+    );
+    frame.render_widget(header, chunks[0]);
+
+    // Middle: quote (centered)
+    let quote_area = chunks[1];
+    let horizontal_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(20),
+            Constraint::Percentage(60),
+            Constraint::Percentage(20),
+        ])
+        .split(quote_area);
+
+    let vertical_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage(30),
+            Constraint::Min(5),
+            Constraint::Percentage(30),
+        ])
+        .split(horizontal_chunks[1]);
+
+    let quote_spans = self.render_quote();
+    let quote_block = Paragraph::new(quote_spans)
+        .block(
             Block::default()
-                .borders(Borders::BOTTOM)
-                .title(" MonkeyType TUI (prototype) "),
-        );
-        frame.render_widget(header, chunks[0]);
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+                .title(" ═══ QUOTE ═══ ")
+                .title_alignment(Alignment::Center)
+        )
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true })
+        .style(Style::default().add_modifier(Modifier::BOLD));
+    frame.render_widget(quote_block, vertical_chunks[1]);
 
-        // Middle: quote + typed overlay (centered with restricted width)
-        let quote_area = chunks[1];
-
-        // Create horizontal centered layout with restricted width
-        let horizontal_chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(20),
-                Constraint::Percentage(60),
-                Constraint::Percentage(20),
-            ])
-            .split(quote_area);
-
-        // Create vertical centered layout
-        let vertical_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Percentage(30),
-                Constraint::Min(5),
-                Constraint::Percentage(30),
-            ])
-            .split(horizontal_chunks[1]);
-
-        let quote_spans = self.render_quote();
-        let quote_block = Paragraph::new(quote_spans)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
-                    .title(" ═══ QUOTE ═══ ")
-                    .title_alignment(Alignment::Center)
-            )
-            .alignment(Alignment::Center)
-            .style(Style::default().add_modifier(Modifier::BOLD));
-
-        frame.render_widget(quote_block, vertical_chunks[1]);
-
-        // Footer: raw input
-        let footer = Paragraph::new(self.typed.as_str()).block(
+    // Footer: show quote source
+    let footer = Paragraph::new(format!("Source: {}", self.quote_source))
+        .block(
             Block::default()
                 .borders(Borders::TOP)
-                .title(" Your input "),
-        );
-        frame.render_widget(footer, chunks[2]);
-    }
+                .title(" Quote Attribution "),
+        )
+        .style(Style::default().fg(Color::DarkGray));
+    frame.render_widget(footer, chunks[2]);
+}
 
     fn draw_results(&self, frame: &mut Frame) {
         // Create centered vertical layout
@@ -447,5 +476,19 @@ impl App {
         self.db.save_result(&result).ok();
         self.last_result = Some(result);
         self.state = AppState::Results;
+    }
+
+    pub fn change_mode(&mut self, mode: QuoteMode) {
+        self.quote_mode = mode;
+        self.reset(); // This will get a new quote in the new mode
+    }
+
+    pub fn show_history(&mut self) -> anyhow::Result<()> {
+        self.state = AppState::History;
+        Ok(())
+    }
+
+    pub fn back_to_testing(&mut self) {
+        self.state = AppState::Testing;
     }
 }

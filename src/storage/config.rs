@@ -40,6 +40,7 @@ impl ConfigManager {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn path(&self) -> &PathBuf {
         &self.config_path
     }

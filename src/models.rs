@@ -15,6 +15,7 @@ pub struct TestResult {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct UserStats {
     pub total_tests: i64,
     pub best_wpm: f64,

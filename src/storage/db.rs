@@ -78,6 +78,7 @@ impl Database {
         Ok(results)
     }
 
+    #[allow(dead_code)]
     pub fn get_stats(&self) -> Result<UserStats> {
         let total_tests: i64 = self.conn.query_row(
             "SELECT COUNT(*) FROM test_results",
