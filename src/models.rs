@@ -49,3 +49,20 @@ impl Default for AppConfig {
         }
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Theme {
+    pub correct_char: Color,
+    pub incorrect_char: Color,
+    pub untyped_char: Color,
+    pub wpm_color: Color,
+    pub accuracy_color: Color,
+    pub border_color: Color,
+}
+
+impl Theme {
+    pub fn dark() -> Self { /* ... */ }
+    pub fn light() -> Self { /* ... */ }
+    pub fn nord() -> Self { /* ... */ }
+    pub fn dracula() -> Self { /* ... */ }
+}

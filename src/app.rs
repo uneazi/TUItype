@@ -14,6 +14,7 @@ use crate::storage::config::ConfigManager;
 use crate::models::{AppConfig, TestResult};
 use chrono::Utc;
 use crate::quotes::{QuoteManager, QuoteMode};
+use crate::theme::Theme;
 
 pub enum AppState {
     Testing,
@@ -32,6 +33,7 @@ pub struct App {
     last_tick: Instant,
     wpm: f64,
     wpm_history: Vec<(Instant, f64)>,
+    mistakes: usize,
     accuracy: f64,
     is_complete: bool,
     completed_at: Option<Instant>,
@@ -42,6 +44,7 @@ pub struct App {
     pub db: Database,
     pub _config: AppConfig,
     pub last_result: Option<TestResult>,
+    theme: Theme;
 }
 
 impl App {
@@ -64,6 +67,9 @@ impl App {
             .get_random_quote(quote_mode)
             .ok_or_else(|| anyhow::anyhow!("No quotes available"))?;
 
+        // Load theme from config
+        let theme = Theme::from_name(&config.theme);
+
         Ok(Self {
             quote: quote_obj.text.clone(),
             quote_source: quote_obj.source.clone(),
@@ -74,7 +80,8 @@ impl App {
             last_tick: Instant::now(),
             wpm: 0.0,
             wpm_history: Vec::new(),
-            accuracy: 100.0,
+            mistakes: 0,
+            accuracy: 0.0,
             is_complete: false,
             completed_at: None,
             final_wpm: 0.0,
@@ -84,6 +91,7 @@ impl App {
             db,
             _config: config,
             last_result: None,
+            theme,
         })
     }
 
@@ -102,6 +110,10 @@ impl App {
 
         match key.code {
             KeyCode::Char(c) => {
+                let expected = self.quote.chars().nth(self.typed.len());
+                if expected != Some(c) {
+                    self.mistakes += 1;
+                }
                 self.typed.push(c);
             }
             KeyCode::Backspace => {
@@ -266,7 +278,7 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
     // First line: Keybinds
     let keybinds_line = Line::from(vec![
         Span::styled(
-            " TAB: Mode | Ctrl+H: History | Ctrl+S: Stats | `: Quit ",
+            " TAB: Mode | Ctrl+H: History | Ctrl+S: Stats | Ctrl+N: New Quote | `: Quit ",
             Style::default().fg(Color::DarkGray),
         ),
     ]);
@@ -488,16 +500,27 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
 
     fn render_quote(&self) -> Line<'_> {
         let mut line = Line::default();
-
+ 
         for (i, ch) in self.quote.chars().enumerate() {
-            let style = match self.typed.chars().nth(i) {
-                Some(typed_ch) if typed_ch == ch => {
-                    Style::default().fg(Color::Green)
+            let style = if i == self.typed.len() && !self.is_complete {
+                Style::default()
+                    .fg(self.theme.cursor_fg)
+                    .bg(self.theme.cursor_bg)
+                    .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+            } else {
+                match self.typed.chars().nth(i) {
+                    Some(typed_ch) if typed_ch == ch => {
+                        Style::default().fg(self.theme.correct_char)
+                    }
+                    Some(_) => {
+                        Style::default()
+                            .fg(self.theme.incorrect_char)
+                            .add_modifier(Modifier::BOLD)
+                    }
+                    None => {
+                        Style::default().fg(self.theme.untyped_char)
+                    }
                 }
-                Some(_) => Style::default()
-                    .fg(Color::Red)
-                    .add_modifier(Modifier::BOLD),
-                None => Style::default().fg(Color::DarkGray),
             };
 
             line.spans.push(Span::styled(ch.to_string(), style));

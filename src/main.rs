@@ -11,6 +11,7 @@ mod models;
 mod storage;
 mod quotes;
 mod ui;
+mod theme;
 
 use crate::app::{App, AppState};
 use crate::ui:: history::HistoryView;
@@ -74,6 +75,7 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
                     match (key.code, key.modifiers) {
+
                         (KeyCode::Char('`'), _) => {
                             break;
                         }
@@ -136,6 +138,10 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
                             } else {
                                 app.on_key(key);
                             }
+                        }
+
+                        (KeyCode::Char('n'), KeyModifiers::CONTROL) => {
+                            app.reset();
                         }
 
                         _ => {
