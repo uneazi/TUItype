@@ -19,6 +19,7 @@ pub enum AppState {
     Testing,
     Results,
     History,
+    Stats,
 }
 
 pub struct App {
@@ -30,6 +31,7 @@ pub struct App {
     started_at: Option<Instant>,
     last_tick: Instant,
     wpm: f64,
+    wpm_history: Vec<(Instant, f64)>,
     accuracy: f64,
     is_complete: bool,
     completed_at: Option<Instant>,
@@ -71,6 +73,7 @@ impl App {
             started_at: None,
             last_tick: Instant::now(),
             wpm: 0.0,
+            wpm_history: Vec::new(),
             accuracy: 100.0,
             is_complete: false,
             completed_at: None,
@@ -142,9 +145,44 @@ impl App {
             let chars_typed = self.typed.len() as f64;
             let words = chars_typed / 5.0;
             self.wpm = words / (elapsed / 60.0);
+
+            // Record WPM samples for consistency calculation
+            if self.wpm > 0.0 {
+                self.wpm_history.push((Instant::now(), self.wpm));
+            }
         } else {
             self.wpm = 0.0;
         }
+    }
+
+    fn calculate_raw_wpm(&self) -> f64 {
+        if let Some(start) = self.started_at {
+            let elapsed = start.elapsed().as_secs_f64().max(1.0 / 60.0);
+            let total_chars = self.typed.len() as f64;  // All chars, including mistakes
+            let words = total_chars / 5.0;
+            words / (elapsed / 60.0)
+        } else {
+            0.0
+        }
+    }
+
+    // Calculate WPM consistency
+    fn calculate_consistency(&self) -> f64 {
+        if self.wpm_history.len() < 2 {
+            return 100.0;
+        }
+
+        let wpms: Vec<f64> = self. wpm_history.iter().map(|(_, wpm)|*wpm).collect();
+        let mean = wpms.iter().sum::<f64>() / wpms.len() as f64;
+        let variance = wpms
+            .iter()
+            .map(|x| (x - mean)
+                .powi(2))
+            .sum::<f64>() / wpms.len() as f64;
+        let std_dev = variance.sqrt();
+
+        // Convert to percentage (lower std_dev = higher consistency)
+        ((mean - std_dev) / mean * 100.0).max(0.0).min(100.0)
     }
 
     fn check_completion(&mut self) {
@@ -189,6 +227,7 @@ impl App {
         self.final_accuracy = 0.0;
         self.final_duration = Duration::from_secs(0);
         self.last_tick = Instant::now();
+        self.wpm_history.clear();
     }
 
     pub fn is_complete(&self) -> bool {
@@ -203,12 +242,13 @@ impl App {
         }
     }
 
+
 fn draw_typing_screen(&self, frame: &mut Frame) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(
             [
-                Constraint::Length(3), // header
+                Constraint::Length(4), // header (now 4 lines for 2 text rows)
                 Constraint::Min(3),    // quote
                 Constraint::Length(3), // footer
             ]
@@ -216,14 +256,23 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
         )
         .split(frame.area());
 
-    // Header with mode display
+    // Build mode string
     let mode_str = match self.quote_mode {
         QuoteMode::Short => "SHORT",
         QuoteMode::Medium => "MEDIUM",
         QuoteMode::Long => "LONG",
     };
 
-    let header_text = Line::from(vec![
+    // First line: Keybinds
+    let keybinds_line = Line::from(vec![
+        Span::styled(
+            " TAB: Mode | Ctrl+H: History | Ctrl+S: Stats | `: Quit ",
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]);
+
+    // Second line: Stats
+    let stats_line = Line::from(vec![
         Span::styled(
             format!(" [{}] ", mode_str),
             Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
@@ -238,12 +287,10 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
             format!(" Acc: {:>5.1}% ", self.accuracy),
             Style::default().fg(Color::Yellow),
         ),
-        Span::raw(" | "),
-        Span::styled(
-            " TAB: Mode | Ctrl+H: History | `: Quit ",
-            Style::default().fg(Color::DarkGray),
-        ),
     ]);
+
+    // Combine both lines
+    let header_text = vec![keybinds_line, stats_line];
 
     let header = Paragraph::new(header_text).block(
         Block::default()
@@ -252,7 +299,6 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
     );
     frame.render_widget(header, chunks[0]);
 
-    // Middle: quote (centered)
     let quote_area = chunks[1];
     let horizontal_chunks = Layout::default()
         .direction(Direction::Horizontal)
@@ -286,7 +332,7 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
         .style(Style::default().add_modifier(Modifier::BOLD));
     frame.render_widget(quote_block, vertical_chunks[1]);
 
-    // Footer: show quote source
+    // Footer with quote source
     let footer = Paragraph::new(format!("Source: {}", self.quote_source))
         .block(
             Block::default()
@@ -466,9 +512,9 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
             timestamp: Utc::now(),
             mode: "medium".to_string(),
             wpm: self.wpm,
-            raw_wpm: self.wpm, // calculate separately
+            raw_wpm: self.calculate_raw_wpm(), // calculate separately
             accuracy: self.accuracy,
-            consistency: 0.0,  // calculate from WPM samples
+            consistency: self.calculate_consistency(),  // calculate from WPM samples
             quote_length: self.quote.len() as i64,
             duration_seconds: self.started_at.unwrap().elapsed().as_secs() as i64,
         };
@@ -485,6 +531,11 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
 
     pub fn show_history(&mut self) -> anyhow::Result<()> {
         self.state = AppState::History;
+        Ok(())
+    }
+
+    pub fn show_stats(&mut self) -> anyhow::Result<()> {
+        self.state = AppState::Stats;
         Ok(())
     }
 

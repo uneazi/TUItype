@@ -14,6 +14,7 @@ mod ui;
 
 use crate::app::{App, AppState};
 use crate::ui:: history::HistoryView;
+use crate::ui::stats::StatsView;
 
 fn main() -> io::Result<()> {
     // 1. Setup terminal
@@ -46,6 +47,7 @@ fn main() -> io::Result<()> {
 fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<()> {
     let mut app = App::new().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
     let mut history_view: Option<HistoryView> = None;
+    let mut stats_view: Option<StatsView> = None;
 
     loop {
         // Draw UI based on state
@@ -56,6 +58,11 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
                 }
                 AppState::History => {
                     if let Some(ref view) = history_view {
+                        view.draw(frame, frame.area());
+                    }
+                }
+                AppState::Stats => {
+                    if let Some(ref view) = stats_view {
                         view.draw(frame, frame.area());
                     }
                 }
@@ -79,6 +86,14 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
                                 .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
                         }
 
+                        (KeyCode::Char('s'), KeyModifiers::CONTROL) => {
+                            let stats = app.db.get_stats()
+                                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+                            stats_view = Some(StatsView::new(stats));
+                            app.show_stats()
+                                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+                        }
+
                         (KeyCode::Tab, _) => {
                             use crate::quotes::QuoteMode;
                             let next_mode = match app.quote_mode {
@@ -90,9 +105,16 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
                         }
 
                         (KeyCode::Esc, _) => {
-                            if matches!(app.state, AppState::History) {
-                                app.back_to_testing();
-                                history_view = None;
+                            match app.state {
+                                AppState::History => {
+                                    app.back_to_testing();
+                                    history_view = None;
+                                }
+                                AppState::Stats => {  // Add this
+                                    app.back_to_testing();
+                                    stats_view = None;
+                                }
+                                _ => {}
                             }
                         }
 
@@ -101,6 +123,7 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
                                 view.previous();
                             }
                         }
+
                         (KeyCode::Down, _) => {
                             if let Some(ref mut view) = history_view {
                                 view.next();
