@@ -42,9 +42,9 @@ pub struct App {
     final_duration: Duration,
     pub state: AppState,
     pub db: Database,
-    pub _config: AppConfig,
+    pub config: AppConfig,
     pub last_result: Option<TestResult>,
-    theme: Theme;
+    theme: Theme,
 }
 
 impl App {
@@ -89,7 +89,7 @@ impl App {
             final_duration: Duration::from_secs(0),
             state: AppState::Testing,
             db,
-            _config: config,
+            config,
             last_result: None,
             theme,
         })
@@ -278,7 +278,7 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
     // First line: Keybinds
     let keybinds_line = Line::from(vec![
         Span::styled(
-            " TAB: Mode | Ctrl+H: History | Ctrl+S: Stats | Ctrl+N: New Quote | `: Quit ",
+            " TAB: Mode | Ctrl+H: History | Ctrl+S: Stats | Ctrl+T: Theme | Ctrl+N: New Quote | `: Quit ",
             Style::default().fg(Color::DarkGray),
         ),
     ]);
@@ -287,19 +287,25 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
     let stats_line = Line::from(vec![
         Span::styled(
             format!(" [{}] ", mode_str),
-            Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
+            Style::default().fg(self.theme.mode_color).add_modifier(Modifier::BOLD),
         ),
         Span::raw(" | "),
         Span::styled(
             format!(" WPM: {:>5.1} ", self.wpm),
-            Style::default().fg(Color::Cyan),
+            Style::default().fg(self.theme.wpm_color),
         ),
         Span::raw(" | "),
         Span::styled(
             format!(" Acc: {:>5.1}% ", self.accuracy),
-            Style::default().fg(Color::Yellow),
+            Style::default().fg(self.theme.accuracy_color),
+        ),
+        Span::raw(" | "),
+        Span::styled(
+            format!(" Errors: {} ", self.mistakes),
+            Style::default().fg(self.theme.error_color),
         ),
     ]);
+
 
     // Combine both lines
     let header_text = vec![keybinds_line, stats_line];
@@ -307,7 +313,8 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
     let header = Paragraph::new(header_text).block(
         Block::default()
             .borders(Borders::BOTTOM)
-            .title(" TUItype "),
+            .title(" TUItype ")
+            .title_style(Style::default().fg(self.theme.title_color)),
     );
     frame.render_widget(header, chunks[0]);
 
@@ -331,17 +338,22 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
         .split(horizontal_chunks[1]);
 
     let quote_spans = self.render_quote();
+
     let quote_block = Paragraph::new(quote_spans)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+                .border_style(Style::default()
+                    .fg(self.theme.border_color)
+                    .add_modifier(Modifier::BOLD))
                 .title(" ═══ QUOTE ═══ ")
+                .title_style(Style::default().fg(self.theme.title_color))
                 .title_alignment(Alignment::Center)
         )
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true })
         .style(Style::default().add_modifier(Modifier::BOLD));
+
     frame.render_widget(quote_block, vertical_chunks[1]);
 
     // Footer with quote source
@@ -349,7 +361,8 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
         .block(
             Block::default()
                 .borders(Borders::TOP)
-                .title(" Quote Attribution "),
+                .title(" Quote Attribution ")
+                .title_style(Style::default().fg(self.theme.title_color)),
         )
         .style(Style::default().fg(Color::DarkGray));
     frame.render_widget(footer, chunks[2]);
@@ -384,21 +397,21 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
             Line::from(vec![Span::styled(
                 "╔══════════════════════════╗",
                 Style::default()
-                    .fg(Color::Cyan)
+                    .fg(self.theme.success_color)
                     .add_modifier(Modifier::BOLD),
             )])
             .alignment(Alignment::Center),
             Line::from(vec![Span::styled(
                 "║      TEST COMPLETE!      ║",
                 Style::default()
-                    .fg(Color::Green)
+                    .fg(self.theme.success_color)
                     .add_modifier(Modifier::BOLD),
             )])
             .alignment(Alignment::Center),
             Line::from(vec![Span::styled(
                 "╚══════════════════════════╝",
                 Style::default()
-                    .fg(Color::Cyan)
+                    .fg(self.theme.success_color)
                     .add_modifier(Modifier::BOLD),
             )])
             .alignment(Alignment::Center),
@@ -414,7 +427,7 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
                 Span::styled(
                     format!("{:.1}", self.final_wpm),
                     Style::default()
-                        .fg(Color::Cyan)
+                        .fg(self.theme.wpm_color)
                         .add_modifier(Modifier::BOLD),
                 ),
             ])
@@ -430,7 +443,7 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
                 Span::styled(
                     format!("{:.1}%", self.final_accuracy),
                     Style::default()
-                        .fg(Color::Yellow)
+                        .fg(self.theme.accuracy_color)
                         .add_modifier(Modifier::BOLD),
                 ),
             ])
@@ -464,7 +477,7 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
                 Span::styled(
                     "SPACE",
                     Style::default()
-                        .fg(Color::Green)
+                        .fg(self.theme.success_color)
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(" to restart", Style::default().fg(Color::DarkGray)),
@@ -488,10 +501,11 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
                 .borders(Borders::ALL)
                 .border_style(
                     Style::default()
-                        .fg(Color::Green)
+                        .fg(self.theme.success_color)
                         .add_modifier(Modifier::BOLD),
                 )
                 .title(" ═══ RESULTS ═══ ")
+                .title_style(Style::default().fg(self.theme.title_color))
                 .title_alignment(Alignment::Center),
         );
 
@@ -564,5 +578,24 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
 
     pub fn back_to_testing(&mut self) {
         self.state = AppState::Testing;
+    }
+
+    pub fn cycle_theme(&mut self) {
+        let themes = Theme::available_themes();
+        let current_index = themes
+            .iter()
+            .position(|&t| t == self.theme.name)
+            .unwrap_or(0);
+        let next_index = (current_index + 1) % themes.len();
+        self.theme = Theme::from_name(themes[next_index]);
+        // Update config
+        self.config.theme = self.theme.name.clone();
+        self.save_config().ok();
+    }
+
+    pub fn save_config(&self) -> anyhow::Result<()> {
+        let config_mgr = ConfigManager::new()?;
+        config_mgr.save(&self.config)?;
+        Ok(())
     }
 }

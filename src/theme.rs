@@ -1,7 +1,6 @@
 use ratatui::style::Color;
-use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Theme {
     pub name: String,
     pub correct_char: Color,
@@ -26,6 +25,7 @@ impl Theme {
             "nord" => Self::nord(),
             "dracula" => Self::dracula(),
             "solarized" => Self::solarized(),
+            "catppuccin-mocha" | "catppuccin" | "mocha" => Self::catppuccin_mocha(),
             _ => Self::dark(), // Default fallback
         }
     }
@@ -120,7 +120,25 @@ impl Theme {
         }
     }
 
+    pub fn catppuccin_mocha() -> Self {
+        Self {
+            name: "catppuccin-mocha".to_string(),
+            correct_char: Color::Rgb(166, 227, 161),    // green  #a6e3a1
+            incorrect_char: Color::Rgb(243, 139, 168),  // red    #f38ba8
+            untyped_char: Color::Rgb(88, 91, 112),      // surface2 #585b70
+            cursor_fg: Color::Rgb(205, 214, 244),       // text   #cdd6f4
+            cursor_bg: Color::Rgb(49, 50, 68),          // surface0 #313244
+            wpm_color: Color::Rgb(148, 226, 213),       // teal   #94e2d5
+            accuracy_color: Color::Rgb(249, 226, 175),  // yellow #f9e2af
+            error_color: Color::Rgb(243, 139, 168),     // red    #f38ba8
+            mode_color: Color::Rgb(203, 166, 247),      // mauve  #cba6f7
+            border_color: Color::Rgb(116, 199, 236),    // sapphire-ish #74c7ec[web:180]
+            title_color: Color::Rgb(180, 190, 254),     // lavender #b4befe
+            success_color: Color::Rgb(166, 227, 161),   // green  #a6e3a1
+        }
+    }
+
     pub fn available_themes() -> Vec<&'static str> {
-        vec!["dark", "light", "nord", "dracula", "solarized"]
+        vec!["dark", "light", "nord", "dracula", "solarized", "catppuccin-mocha"]
     }
 }

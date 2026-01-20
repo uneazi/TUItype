@@ -96,6 +96,10 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
                                 .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
                         }
 
+                        (KeyCode::Char('t'), KeyModifiers::CONTROL) => {
+                            app.cycle_theme();
+                        }
+
                         (KeyCode::Tab, _) => {
                             use crate::quotes::QuoteMode;
                             let next_mode = match app.quote_mode {
