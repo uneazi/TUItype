@@ -116,7 +116,7 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
                                     app.back_to_testing();
                                     history_view = None;
                                 }
-                                AppState::Stats => {  // Add this
+                                AppState::Stats => {
                                     app.back_to_testing();
                                     stats_view = None;
                                 }

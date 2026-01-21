@@ -96,35 +96,58 @@ impl App {
     }
 
     pub fn on_key(&mut self, key: KeyEvent) {
-        use crossterm::event::KeyCode;
+        use crossterm::event::{KeyCode, KeyModifiers};
 
-        // Don't process input if test is complete
         if self.is_complete {
             return;
         }
 
-        // Start timer on first key
         if self.started_at.is_none() {
             self.started_at = Some(Instant::now());
         }
 
-        match key.code {
-            KeyCode::Char(c) => {
+        match (key.code, key.modifiers) {
+            (KeyCode::Char(c), _) => {
                 let expected = self.quote.chars().nth(self.typed.len());
                 if expected != Some(c) {
                     self.mistakes += 1;
                 }
                 self.typed.push(c);
             }
-            KeyCode::Backspace => {
+ 
+            (KeyCode::Backspace, KeyModifiers::ALT) => {
+                // Alt+Backspace: delete whole word
+                self.delete_word();
+            }
+ 
+            (KeyCode::Backspace, _) => {
+                // Regular backspace
                 self.typed.pop();
             }
+ 
             _ => {}
         }
 
         self.recalc_metrics();
         self.check_completion();
     }
+
+    fn delete_word(&mut self) {
+    // Find the start of the current word (from right)
+    let mut start = self.typed.len();
+
+    // Move left until we hit a non-word character or beginning
+    while start > 0 {
+        let ch = self.typed.as_bytes()[start - 1];
+        if ch.is_ascii_whitespace() || !ch.is_ascii_alphanumeric() {
+            break;
+        }
+        start -= 1;
+    }
+
+    // Remove characters from start to end
+    self.typed.drain(start..);
+}
 
     pub fn on_tick(&mut self) {
         if self.is_complete {
@@ -512,36 +535,55 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
         frame.render_widget(results_block, horizontal_chunks[1]);
     }
 
-    fn render_quote(&self) -> Line<'_> {
-        let mut line = Line::default();
- 
-        for (i, ch) in self.quote.chars().enumerate() {
-            let style = if i == self.typed.len() && !self.is_complete {
-                Style::default()
-                    .fg(self.theme.cursor_fg)
-                    .bg(self.theme.cursor_bg)
-                    .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
-            } else {
-                match self.typed.chars().nth(i) {
-                    Some(typed_ch) if typed_ch == ch => {
-                        Style::default().fg(self.theme.correct_char)
-                    }
-                    Some(_) => {
-                        Style::default()
-                            .fg(self.theme.incorrect_char)
-                            .add_modifier(Modifier::BOLD)
-                    }
-                    None => {
-                        Style::default().fg(self.theme.untyped_char)
-                    }
+fn render_quote(&self) -> Line<'_> {
+    let mut line = Line::default();
+
+    let quote_chars: Vec<char> = self.quote.chars().collect();
+    let typed_chars: Vec<char> = self.typed.chars().collect();
+    let len = quote_chars.len();
+
+    for i in 0..len {
+        let expected = quote_chars[i];
+        let typed = typed_chars.get(i).copied();
+
+        let (ch_to_show, style) = match typed {
+            Some(c) => {
+                if expected == ' ' && c != ' ' {
+                    // SPECIAL CASE: space expected, wrong char typed
+                    (c, Style::default()
+                        .fg(self.theme.incorrect_char)
+                        .add_modifier(Modifier::BOLD))
+                } else if c == expected {
+                    // Correct
+                    (expected, Style::default().fg(self.theme.correct_char))
+                } else {
+                    // Incorrect (non-space expected, wrong char typed)
+                    (expected, Style::default()
+                        .fg(self.theme.incorrect_char)
+                        .add_modifier(Modifier::BOLD))
                 }
-            };
+            }
+            None => {
+                // Not yet typed
+                (expected, Style::default().fg(self.theme.untyped_char))
+            }
+        };
 
-            line.spans.push(Span::styled(ch.to_string(), style));
-        }
+        // Cursor highlight on next char to type
+        let style = if i == typed_chars.len() && !self.is_complete {
+            style
+                .fg(self.theme.cursor_fg)
+                .bg(self.theme.cursor_bg)
+                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+        } else {
+            style
+        };
 
-        line
+        line.spans.push(Span::styled(ch_to_show.to_string(), style));
     }
+
+    line
+}
 
     pub fn finish_test(&mut self) {
         let result = TestResult {
