@@ -263,7 +263,24 @@ impl App {
         self.final_duration = Duration::from_secs(0);
         self.last_tick = Instant::now();
         self.wpm_history.clear();
+        self.mistakes = 0;
     }
+
+    pub fn restart(&mut self) {
+        self.typed.clear();
+        self.started_at = None;
+        self.wpm = 0.0;
+        self.accuracy = 100.0;
+        self.is_complete = false;
+        self.completed_at = None;
+        self.final_wpm = 0.0;
+        self.final_accuracy = 0.0;
+        self.final_duration = Duration::from_secs(0);
+        self.last_tick = Instant::now();
+        self.wpm_history.clear();
+        self.mistakes = 0;
+    }
+
 
     pub fn is_complete(&self) -> bool {
         self.is_complete
@@ -283,7 +300,7 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
         .direction(Direction::Vertical)
         .constraints(
             [
-                Constraint::Length(4), // header (now 4 lines for 2 text rows)
+                Constraint::Length(5), // header 
                 Constraint::Min(3),    // quote
                 Constraint::Length(3), // footer
             ]
@@ -299,14 +316,22 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
     };
 
     // First line: Keybinds
-    let keybinds_line = Line::from(vec![
+    let keybinds_line1 = Line::from(vec![
         Span::styled(
-            " TAB: Mode | Ctrl+H: History | Ctrl+S: Stats | Ctrl+T: Theme | Ctrl+N: New Quote | `: Quit ",
+            " TAB: Mode | Ctrl+H: History | Ctrl+S: Stats ",
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]);
+    // Second line: Keybinds
+    let keybinds_line2 = Line::from(vec![
+        Span::styled(
+            " Ctrl+T: Theme | Ctrl+N: New Quote | Ctrl+R: Restart | `: Quit ",
             Style::default().fg(Color::DarkGray),
         ),
     ]);
 
-    // Second line: Stats
+
+    // Third line: Stats
     let stats_line = Line::from(vec![
         Span::styled(
             format!(" [{}] ", mode_str),
@@ -331,7 +356,11 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
 
 
     // Combine both lines
-    let header_text = vec![keybinds_line, stats_line];
+    let header_text = vec![
+        keybinds_line1,
+        keybinds_line2,
+        stats_line,
+    ];
 
     let header = Paragraph::new(header_text).block(
         Block::default()

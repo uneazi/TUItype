@@ -148,6 +148,10 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
                             app.reset();
                         }
 
+                        (KeyCode::Char('r'), KeyModifiers::CONTROL) => {
+                            app.restart();
+                        }
+
                         _ => {
                             app.on_key(key);
                         }
