@@ -133,21 +133,21 @@ impl App {
     }
 
     fn delete_word(&mut self) {
-    // Find the start of the current word (from right)
-    let mut start = self.typed.len();
+        // Find the start of the current word (from right)
+        let mut start = self.typed.len();
 
-    // Move left until we hit a non-word character or beginning
-    while start > 0 {
-        let ch = self.typed.as_bytes()[start - 1];
-        if ch.is_ascii_whitespace() || !ch.is_ascii_alphanumeric() {
-            break;
+        // Move left until we hit a non-word character or beginning
+        while start > 0 {
+            let ch = self.typed.as_bytes()[start - 1];
+            if ch.is_ascii_whitespace() || !ch.is_ascii_alphanumeric() {
+                break;
+            }
+            start -= 1;
         }
-        start -= 1;
-    }
 
-    // Remove characters from start to end
-    self.typed.drain(start..);
-}
+        // Remove characters from start to end
+        self.typed.drain(start..);
+    }
 
     pub fn on_tick(&mut self) {
         if self.is_complete {
@@ -294,131 +294,135 @@ impl App {
         }
     }
 
-
-fn draw_typing_screen(&self, frame: &mut Frame) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(
-            [
-                Constraint::Length(5), // header 
-                Constraint::Min(3),    // quote
-                Constraint::Length(3), // footer
-            ]
-            .as_ref(),
-        )
-        .split(frame.area());
-
-    // Build mode string
-    let mode_str = match self.quote_mode {
-        QuoteMode::Short => "SHORT",
-        QuoteMode::Medium => "MEDIUM",
-        QuoteMode::Long => "LONG",
-    };
-
-    // First line: Keybinds
-    let keybinds_line1 = Line::from(vec![
-        Span::styled(
-            " TAB: Mode | Ctrl+H: History | Ctrl+S: Stats ",
-            Style::default().fg(Color::DarkGray),
-        ),
-    ]);
-    // Second line: Keybinds
-    let keybinds_line2 = Line::from(vec![
-        Span::styled(
-            " Ctrl+T: Theme | Ctrl+N: New Quote | Ctrl+R: Restart | `: Quit ",
-            Style::default().fg(Color::DarkGray),
-        ),
-    ]);
-
-
-    // Third line: Stats
-    let stats_line = Line::from(vec![
-        Span::styled(
-            format!(" [{}] ", mode_str),
-            Style::default().fg(self.theme.mode_color).add_modifier(Modifier::BOLD),
-        ),
-        Span::raw(" | "),
-        Span::styled(
-            format!(" WPM: {:>5.1} ", self.wpm),
-            Style::default().fg(self.theme.wpm_color),
-        ),
-        Span::raw(" | "),
-        Span::styled(
-            format!(" Acc: {:>5.1}% ", self.accuracy),
-            Style::default().fg(self.theme.accuracy_color),
-        ),
-        Span::raw(" | "),
-        Span::styled(
-            format!(" Errors: {} ", self.mistakes),
-            Style::default().fg(self.theme.error_color),
-        ),
-    ]);
-
-
-    // Combine both lines
-    let header_text = vec![
-        keybinds_line1,
-        keybinds_line2,
-        stats_line,
-    ];
-
-    let header = Paragraph::new(header_text).block(
-        Block::default()
-            .borders(Borders::BOTTOM)
-            .title(" TUItype ")
-            .title_style(Style::default().fg(self.theme.title_color)),
-    );
-    frame.render_widget(header, chunks[0]);
-
-    let quote_area = chunks[1];
-    let horizontal_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(20),
-            Constraint::Percentage(60),
-            Constraint::Percentage(20),
-        ])
-        .split(quote_area);
-
-    let vertical_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage(30),
-            Constraint::Min(5),
-            Constraint::Percentage(30),
-        ])
-        .split(horizontal_chunks[1]);
-
-    let quote_spans = self.render_quote();
-
-    let quote_block = Paragraph::new(quote_spans)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default()
-                    .fg(self.theme.border_color)
-                    .add_modifier(Modifier::BOLD))
-                .title(" ═══ QUOTE ═══ ")
-                .title_style(Style::default().fg(self.theme.title_color))
-                .title_alignment(Alignment::Center)
-        )
-        .alignment(Alignment::Center)
-        .wrap(Wrap { trim: true })
-        .style(Style::default().add_modifier(Modifier::BOLD));
-
-    frame.render_widget(quote_block, vertical_chunks[1]);
-
     // Footer with quote source
-    let footer = Paragraph::new(format!("Source: {}", self.quote_source))
-        .block(
+    fn quote_footer<'a>(&'a self) -> Paragraph<'a> {
+        Paragraph::new(format!("Source: {}", self.quote_source))
+            .block(
+                Block::default()
+                    .borders(Borders::TOP)
+                    .title(" Quote Attribution ")
+                    .title_style(Style::default().fg(self.theme.title_color)),
+            )
+            .style(Style::default().fg(Color::DarkGray))
+    }
+
+
+    fn draw_typing_screen(&self, frame: &mut Frame) {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(
+                [
+                    Constraint::Length(5), // header 
+                    Constraint::Min(3),    // quote
+                    Constraint::Length(3), // footer
+                ]
+                .as_ref(),
+            )
+            .split(frame.area());
+
+        // Build mode string
+        let mode_str = match self.quote_mode {
+            QuoteMode::Short => "SHORT",
+            QuoteMode::Medium => "MEDIUM",
+            QuoteMode::Long => "LONG",
+        };
+
+        // First line: Keybinds
+        let keybinds_line1 = Line::from(vec![
+            Span::styled(
+                " TAB: Mode | Ctrl+H: History | Ctrl+S: Stats ",
+                Style::default().fg(Color::DarkGray),
+            ),
+        ]);
+        // Second line: Keybinds
+        let keybinds_line2 = Line::from(vec![
+            Span::styled(
+                " Ctrl+T: Theme | Ctrl+N: New Quote | Ctrl+R: Restart | `: Quit ",
+                Style::default().fg(Color::DarkGray),
+            ),
+        ]);
+
+
+        // Third line: Stats
+        let stats_line = Line::from(vec![
+            Span::styled(
+                format!(" [{}] ", mode_str),
+                Style::default().fg(self.theme.mode_color).add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" | "),
+            Span::styled(
+                format!(" WPM: {:>5.1} ", self.wpm),
+                Style::default().fg(self.theme.wpm_color),
+            ),
+            Span::raw(" | "),
+            Span::styled(
+                format!(" Acc: {:>5.1}% ", self.accuracy),
+                Style::default().fg(self.theme.accuracy_color),
+            ),
+            Span::raw(" | "),
+            Span::styled(
+                format!(" Errors: {} ", self.mistakes),
+                Style::default().fg(self.theme.error_color),
+            ),
+        ]);
+
+
+        // Combine both lines
+        let header_text = vec![
+            keybinds_line1,
+            keybinds_line2,
+            stats_line,
+        ];
+
+        let header = Paragraph::new(header_text).block(
             Block::default()
-                .borders(Borders::TOP)
-                .title(" Quote Attribution ")
+                .borders(Borders::BOTTOM)
+                .title(" TUItype ")
                 .title_style(Style::default().fg(self.theme.title_color)),
-        )
-        .style(Style::default().fg(Color::DarkGray));
-    frame.render_widget(footer, chunks[2]);
-}
+        );
+        frame.render_widget(header, chunks[0]);
+
+        let quote_area = chunks[1];
+        let horizontal_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(20),
+                Constraint::Percentage(60),
+                Constraint::Percentage(20),
+            ])
+            .split(quote_area);
+
+        let vertical_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Percentage(30),
+                Constraint::Min(5),
+                Constraint::Percentage(30),
+            ])
+            .split(horizontal_chunks[1]);
+
+        let quote_spans = self.render_quote();
+
+        let quote_block = Paragraph::new(quote_spans)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default()
+                        .fg(self.theme.border_color)
+                        .add_modifier(Modifier::BOLD))
+                    .title(" ═══ QUOTE ═══ ")
+                    .title_style(Style::default().fg(self.theme.title_color))
+                    .title_alignment(Alignment::Center)
+            )
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true })
+            .style(Style::default().add_modifier(Modifier::BOLD));
+
+        frame.render_widget(quote_block, vertical_chunks[1]);
+
+        let footer = self.quote_footer();
+        frame.render_widget(footer, chunks[2]);
+    }
 
     fn draw_results(&self, frame: &mut Frame) {
         // Create centered vertical layout
@@ -428,6 +432,7 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
                 Constraint::Percentage(20),
                 Constraint::Min(15),
                 Constraint::Percentage(20),
+                Constraint::Length(3),
             ])
             .split(frame.area());
 
@@ -562,57 +567,60 @@ fn draw_typing_screen(&self, frame: &mut Frame) {
         );
 
         frame.render_widget(results_block, horizontal_chunks[1]);
+
+        let footer = self.quote_footer();
+        frame.render_widget(footer, vertical_chunks[3]);
     }
 
-fn render_quote(&self) -> Line<'_> {
-    let mut line = Line::default();
+    fn render_quote(&self) -> Line<'_> {
+        let mut line = Line::default();
 
-    let quote_chars: Vec<char> = self.quote.chars().collect();
-    let typed_chars: Vec<char> = self.typed.chars().collect();
-    let len = quote_chars.len();
+        let quote_chars: Vec<char> = self.quote.chars().collect();
+        let typed_chars: Vec<char> = self.typed.chars().collect();
+        let len = quote_chars.len();
 
-    for i in 0..len {
-        let expected = quote_chars[i];
-        let typed = typed_chars.get(i).copied();
+        for i in 0..len {
+            let expected = quote_chars[i];
+            let typed = typed_chars.get(i).copied();
 
-        let (ch_to_show, style) = match typed {
-            Some(c) => {
-                if expected == ' ' && c != ' ' {
-                    // SPECIAL CASE: space expected, wrong char typed
-                    (c, Style::default()
-                        .fg(self.theme.incorrect_char)
-                        .add_modifier(Modifier::BOLD))
-                } else if c == expected {
-                    // Correct
-                    (expected, Style::default().fg(self.theme.correct_char))
-                } else {
-                    // Incorrect (non-space expected, wrong char typed)
-                    (expected, Style::default()
-                        .fg(self.theme.incorrect_char)
-                        .add_modifier(Modifier::BOLD))
+            let (ch_to_show, style) = match typed {
+                Some(c) => {
+                    if expected == ' ' && c != ' ' {
+                        // SPECIAL CASE: space expected, wrong char typed
+                        (c, Style::default()
+                            .fg(self.theme.incorrect_char)
+                            .add_modifier(Modifier::BOLD))
+                    } else if c == expected {
+                        // Correct
+                        (expected, Style::default().fg(self.theme.correct_char))
+                    } else {
+                        // Incorrect (non-space expected, wrong char typed)
+                        (expected, Style::default()
+                            .fg(self.theme.incorrect_char)
+                            .add_modifier(Modifier::BOLD))
+                    }
                 }
-            }
-            None => {
-                // Not yet typed
-                (expected, Style::default().fg(self.theme.untyped_char))
-            }
-        };
+                None => {
+                    // Not yet typed
+                    (expected, Style::default().fg(self.theme.untyped_char))
+                }
+            };
 
-        // Cursor highlight on next char to type
-        let style = if i == typed_chars.len() && !self.is_complete {
-            style
-                .fg(self.theme.cursor_fg)
-                .bg(self.theme.cursor_bg)
-                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
-        } else {
-            style
-        };
+            // Cursor highlight on next char to type
+            let style = if i == typed_chars.len() && !self.is_complete {
+                style
+                    .fg(self.theme.cursor_fg)
+                    .bg(self.theme.cursor_bg)
+                    .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+            } else {
+                style
+            };
 
-        line.spans.push(Span::styled(ch_to_show.to_string(), style));
+            line.spans.push(Span::styled(ch_to_show.to_string(), style));
+        }
+
+        line
     }
-
-    line
-}
 
     pub fn finish_test(&mut self) {
         let result = TestResult {
