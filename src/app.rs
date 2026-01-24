@@ -300,7 +300,7 @@ impl App {
             .block(
                 Block::default()
                     .borders(Borders::TOP)
-                    .title(" Quote Attribution ")
+                    .title("Quote Attribution ")
                     .title_style(Style::default().fg(self.theme.title_color)),
             )
             .style(Style::default().fg(Color::DarkGray))
