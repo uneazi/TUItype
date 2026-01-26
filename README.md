@@ -80,15 +80,16 @@ When you launch TUItype, you'll see a typing test screen with:
 Real-time feedback as you type:
 
 ```
- TAB: Mode | Ctrl+H: History | Ctrl+S: Stats | Ctrl+T: Theme | Ctrl+N: New Quote | `: Quit 
+ TAB: Mode | Ctrl+H: History | Ctrl+S: Stats
+ Ctrl+T: Theme | Ctrl+N: New Quote | `: Quit 
  [MEDIUM]  | WPM: 72.3  | Acc: 98.5%  | Errors: 1
 
-         ╔═══ QUOTE ═══╗
-         ║ The quick   ║
-         ║ brown fox   ║
-         ║ jumps over  ║
-         ║ the lazy... ║
-         ╚═════════════╝
+         ╔══════════ QUOTE ═══════════╗
+         ║ The quick brown fox jumps  ║
+         ║    over the lazy dog.      ║
+         ║                            ║
+         ║                            ║
+         ╚════════════════════════════╝
 
 Source: Jane Austen, 1817
 ```
@@ -103,18 +104,18 @@ Source: Jane Austen, 1817
 After completing a test:
 
 ```
-             ╔═══ RESULTS ═══╗
-             ║               ║
-             ║  TEST COMPLETE!║
-             ║               ║
-             ║  WPM: 75.2    ║
-             ║  Accuracy: 99.1%║
-             ║  Time: 45.32s ║
-             ║               ║
-             ║ Press SPACE to║
-             ║ restart or ` to quit
-             ║               ║
-             ╚═══════════════╝
+             ╔══════ RESULTS ═══════╗
+             ║                      ║
+             ║    TEST COMPLETE!    ║
+             ║                      ║
+             ║      WPM: 75.2       ║
+             ║   Accuracy: 99.1%    ║
+             ║     Time: 45.32s     ║
+             ║                      ║
+             ║    Press SPACE to    ║
+             ║ restart or ` to quit ║
+             ║                      ║
+             ╚══════════════════════╝
 ```
 
 ### History View
