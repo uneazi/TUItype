@@ -221,7 +221,7 @@ Raw WPM = (total_characters / 5) / (seconds_elapsed / 60)
 ### Build
 
 ```bash
-git clone https://github.com/yourusername/TUItype
+git clone https://github.com/uneazi/TUItype
 cd TUItype
 cargo build --release
 ```
