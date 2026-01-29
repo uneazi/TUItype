@@ -83,8 +83,9 @@ Real-time feedback as you type:
 
 ```
  TAB: Mode | Ctrl+H: History | Ctrl+S: Stats
- Ctrl+T: Theme | Ctrl+N: New Quote | `: Quit 
+ Ctrl+T: Theme | Ctrl+N: New Quote | Ctrl+R: Restart | `: Quit 
  [MEDIUM]  | WPM: 72.3  | Acc: 98.5%  | Errors: 1
+----------------------------------------------------
 
          ╔══════════ QUOTE ═══════════╗
          ║ The quick brown fox jumps  ║
@@ -93,7 +94,8 @@ Real-time feedback as you type:
          ║                            ║
          ╚════════════════════════════╝
 
-Source: Jane Austen, 1817
+Quote Attribution ----------------------------------
+Jane Austen
 ```
 
 - **Green text** — correctly typed characters
@@ -141,10 +143,10 @@ Performance analytics:
 ```
 ╔════════ STATS ════════╗
 ║ Total Tests:    47    ║
-║ Avg WPM:        71.2  ║
 ║ Best WPM:       89.4  ║
+║ Avg WPM:        71.2  ║
 ║ Consistency:    94.3% ║
-║ Best Accuracy:  99.8% ║
+║ Avg Accuracy:   99.8% ║
 ║ Total Time:     52m   ║
 ╚═══════════════════════╝
 ```
@@ -349,8 +351,8 @@ MIT License — see LICENSE file for details.
 
 ## Acknowledgments
 
-- Quotes sourced from MonkeyType
 - Inspired by [TypeRacer](https://play.typeracer.com/), [Monkeytype](https://monkeytype.com/)
+- Quotes sourced from MonkeyType
 - Built with [ratatui](https://github.com/ratatui-org/ratatui) community
 
 ## Contact
