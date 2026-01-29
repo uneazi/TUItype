@@ -31,6 +31,7 @@ A fast, keyboard-focused typing test built in Rust for the terminal. Type quotes
    ```powershell
    .\TUItype.exe
    ```
+   Note: It might be possible to double-click to open the program in the default terminal, but YMMV.
 4. (Optional) Add the folder to your PATH to run `TUItype` from anywhere
 
 #### Linux / macOS (Build from Source)
