@@ -31,6 +31,7 @@ A fast, keyboard-focused typing test built in Rust for the terminal. Type quotes
    ```powershell
    .\TUItype.exe
    ```
+   Note: It might be possible to double-click to open the program in the default terminal, but YMMV.
 4. (Optional) Add the folder to your PATH to run `TUItype` from anywhere
 
 #### Linux / macOS (Build from Source)
@@ -48,7 +49,7 @@ cargo build --release
 
 When you launch TUItype, you'll see a typing test screen with:
 
-- **Header** — current mode, real-time WPM, accuracy, and error count
+- **Header** — keybinds, current mode, real-time WPM, accuracy, and error count
 - **Quote box** — the text you're typing (with scrolling support for long quotes)
 - **Footer** — quote attribution/source
 
@@ -64,6 +65,7 @@ When you launch TUItype, you'll see a typing test screen with:
 | `` ` `` | Quit the application |
 | `Space` (after test complete) | Restart with a new quote |
 | `Backspace` | Delete the last typed character |
+| `Alt+Backspace` | Delete the last/current word |
 | `Up/Down` (in history) | Navigate previous/next test |
 | `Esc` (in history/stats) | Return to typing screen |
 
@@ -81,8 +83,9 @@ Real-time feedback as you type:
 
 ```
  TAB: Mode | Ctrl+H: History | Ctrl+S: Stats
- Ctrl+T: Theme | Ctrl+N: New Quote | `: Quit 
+ Ctrl+T: Theme | Ctrl+N: New Quote | Ctrl+R: Restart | `: Quit 
  [MEDIUM]  | WPM: 72.3  | Acc: 98.5%  | Errors: 1
+----------------------------------------------------
 
          ╔══════════ QUOTE ═══════════╗
          ║ The quick brown fox jumps  ║
@@ -91,7 +94,8 @@ Real-time feedback as you type:
          ║                            ║
          ╚════════════════════════════╝
 
-Source: Jane Austen, 1817
+Quote Attribution ----------------------------------
+Jane Austen
 ```
 
 - **Green text** — correctly typed characters
@@ -139,10 +143,10 @@ Performance analytics:
 ```
 ╔════════ STATS ════════╗
 ║ Total Tests:    47    ║
-║ Avg WPM:        71.2  ║
 ║ Best WPM:       89.4  ║
+║ Avg WPM:        71.2  ║
 ║ Consistency:    94.3% ║
-║ Best Accuracy:  99.8% ║
+║ Avg Accuracy:   99.8% ║
 ║ Total Time:     52m   ║
 ╚═══════════════════════╝
 ```
@@ -347,8 +351,8 @@ MIT License — see LICENSE file for details.
 
 ## Acknowledgments
 
-- Quotes sourced from MonkeyType
 - Inspired by [TypeRacer](https://play.typeracer.com/), [Monkeytype](https://monkeytype.com/)
+- Quotes sourced from MonkeyType
 - Built with [ratatui](https://github.com/ratatui-org/ratatui) community
 
 ## Contact
