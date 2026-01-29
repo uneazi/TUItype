@@ -49,7 +49,7 @@ cargo build --release
 
 When you launch TUItype, you'll see a typing test screen with:
 
-- **Header** — current mode, real-time WPM, accuracy, and error count
+- **Header** — keybinds, current mode, real-time WPM, accuracy, and error count
 - **Quote box** — the text you're typing (with scrolling support for long quotes)
 - **Footer** — quote attribution/source
 
@@ -65,6 +65,7 @@ When you launch TUItype, you'll see a typing test screen with:
 | `` ` `` | Quit the application |
 | `Space` (after test complete) | Restart with a new quote |
 | `Backspace` | Delete the last typed character |
+| `Alt+Backspace` | Delete the last/current word |
 | `Up/Down` (in history) | Navigate previous/next test |
 | `Esc` (in history/stats) | Return to typing screen |
 
