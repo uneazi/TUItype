@@ -9,12 +9,12 @@ use ratatui::{
     Frame,
 };
 
-use crate::storage::db::Database;
-use crate::storage::config::ConfigManager;
 use crate::models::{AppConfig, TestResult};
-use chrono::Utc;
 use crate::quotes::{QuoteManager, QuoteMode};
+use crate::storage::config::ConfigManager;
+use crate::storage::db::Database;
 use crate::theme::Theme;
+use chrono::Utc;
 
 pub enum AppState {
     Testing,
@@ -114,17 +114,17 @@ impl App {
                 }
                 self.typed.push(c);
             }
- 
+
             (KeyCode::Backspace, KeyModifiers::ALT) => {
                 // Alt+Backspace: delete whole word
                 self.delete_word();
             }
- 
+
             (KeyCode::Backspace, _) => {
                 // Regular backspace
                 self.typed.pop();
             }
- 
+
             _ => {}
         }
 
@@ -193,7 +193,7 @@ impl App {
     fn calculate_raw_wpm(&self) -> f64 {
         if let Some(start) = self.started_at {
             let elapsed = start.elapsed().as_secs_f64().max(1.0 / 60.0);
-            let total_chars = self.typed.len() as f64;  // All chars, including mistakes
+            let total_chars = self.typed.len() as f64; // All chars, including mistakes
             let words = total_chars / 5.0;
             words / (elapsed / 60.0)
         } else {
@@ -207,13 +207,9 @@ impl App {
             return 100.0;
         }
 
-        let wpms: Vec<f64> = self. wpm_history.iter().map(|(_, wpm)|*wpm).collect();
+        let wpms: Vec<f64> = self.wpm_history.iter().map(|(_, wpm)| *wpm).collect();
         let mean = wpms.iter().sum::<f64>() / wpms.len() as f64;
-        let variance = wpms
-            .iter()
-            .map(|x| (x - mean)
-                .powi(2))
-            .sum::<f64>() / wpms.len() as f64;
+        let variance = wpms.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / wpms.len() as f64;
         let std_dev = variance.sqrt();
 
         // Convert to percentage (lower std_dev = higher consistency)
@@ -240,8 +236,8 @@ impl App {
                     self.final_duration = start.elapsed();
                 }
 
-            // Save to database
-            self.finish_test();
+                // Save to database
+                self.finish_test();
             }
         }
     }
@@ -281,7 +277,6 @@ impl App {
         self.mistakes = 0;
     }
 
-
     pub fn is_complete(&self) -> bool {
         self.is_complete
     }
@@ -306,13 +301,70 @@ impl App {
             .style(Style::default().fg(Color::DarkGray))
     }
 
+    fn calculate_cursor_row(&self, width: u16) -> u16 {
+        if width < 2 {
+            return 0;
+        }
+        let width = width as usize;
+        let cursor = self.typed.len();
+
+        let mut row = 0;
+        let mut line_len = 0;
+
+        let chars: Vec<char> = self.quote.chars().collect();
+        let mut i = 0;
+
+        while i < chars.len() {
+            // Find word extent
+            let start = i;
+            while i < chars.len() && chars[i] != ' ' {
+                i += 1;
+            }
+            let end = i;
+            let word_len = end - start;
+
+            // Calculate if word fits
+            // Space is needed if not start of line
+            let space = if line_len == 0 { 0 } else { 1 };
+
+            if line_len + space + word_len > width {
+                row += 1;
+                line_len = 0;
+            }
+
+            // Add word
+            if line_len > 0 {
+                line_len += 1;
+            }
+            line_len += word_len;
+
+            // Check cursor (word)
+            if cursor >= start && cursor <= end {
+                return row;
+            }
+
+            // Handle spaces after word
+            while i < chars.len() && chars[i] == ' ' {
+                i += 1;
+            }
+
+            // Check cursor (spaces)
+            // If cursor is in the spaces we just skipped (start was `end`, now `i`)
+            // Range (end, i]
+            if cursor > end && cursor <= i {
+                return row;
+            }
+        }
+
+        row
+    }
 
     fn draw_typing_screen(&self, frame: &mut Frame) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints(
                 [
-                    Constraint::Length(5), // header 
+                    Constraint::Length(5), // header
                     Constraint::Min(3),    // quote
                     Constraint::Length(3), // footer
                 ]
@@ -328,26 +380,23 @@ impl App {
         };
 
         // First line: Keybinds
-        let keybinds_line1 = Line::from(vec![
-            Span::styled(
-                " TAB: Mode | Ctrl+H: History | Ctrl+S: Stats ",
-                Style::default().fg(Color::DarkGray),
-            ),
-        ]);
+        let keybinds_line1 = Line::from(vec![Span::styled(
+            " TAB: Mode | Ctrl+H: History | Ctrl+S: Stats ",
+            Style::default().fg(Color::DarkGray),
+        )]);
         // Second line: Keybinds
-        let keybinds_line2 = Line::from(vec![
-            Span::styled(
-                " Ctrl+T: Theme | Ctrl+N: New Quote | Ctrl+R: Restart | `: Quit ",
-                Style::default().fg(Color::DarkGray),
-            ),
-        ]);
-
+        let keybinds_line2 = Line::from(vec![Span::styled(
+            " Ctrl+T: Theme | Ctrl+N: New Quote | Ctrl+R: Restart | `: Quit ",
+            Style::default().fg(Color::DarkGray),
+        )]);
 
         // Third line: Stats
         let stats_line = Line::from(vec![
             Span::styled(
                 format!(" [{}] ", mode_str),
-                Style::default().fg(self.theme.mode_color).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(self.theme.mode_color)
+                    .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" | "),
             Span::styled(
@@ -366,13 +415,8 @@ impl App {
             ),
         ]);
 
-
         // Combine both lines
-        let header_text = vec![
-            keybinds_line1,
-            keybinds_line2,
-            stats_line,
-        ];
+        let header_text = vec![keybinds_line1, keybinds_line2, stats_line];
 
         let header = Paragraph::new(header_text).block(
             Block::default()
@@ -403,16 +447,31 @@ impl App {
 
         let quote_spans = self.render_quote();
 
+        // Calculate scroll to keep cursor visible
+        let inner_width = vertical_chunks[1].width.saturating_sub(2); // subtract borders
+        let cursor_row = self.calculate_cursor_row(inner_width);
+        let height = vertical_chunks[1].height.saturating_sub(2); // subtract borders
+
+        // Center the cursor
+        let scroll_offset = if cursor_row > height / 2 {
+            cursor_row - height / 2
+        } else {
+            0
+        };
+
         let quote_block = Paragraph::new(quote_spans)
+            .scroll((scroll_offset, 0))
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default()
-                        .fg(self.theme.border_color)
-                        .add_modifier(Modifier::BOLD))
+                    .border_style(
+                        Style::default()
+                            .fg(self.theme.border_color)
+                            .add_modifier(Modifier::BOLD),
+                    )
                     .title(" ═══ QUOTE ═══ ")
                     .title_style(Style::default().fg(self.theme.title_color))
-                    .title_alignment(Alignment::Center)
+                    .title_alignment(Alignment::Center),
             )
             .alignment(Alignment::Center)
             .wrap(Wrap { trim: true })
@@ -544,9 +603,7 @@ impl App {
                 Span::styled("Press ", Style::default().fg(Color::DarkGray)),
                 Span::styled(
                     "`",
-                    Style::default()
-                        .fg(Color::Red)
-                        .add_modifier(Modifier::BOLD),
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(" to quit", Style::default().fg(Color::DarkGray)),
             ])
@@ -587,17 +644,23 @@ impl App {
                 Some(c) => {
                     if expected == ' ' && c != ' ' {
                         // SPECIAL CASE: space expected, wrong char typed
-                        (c, Style::default()
-                            .fg(self.theme.incorrect_char)
-                            .add_modifier(Modifier::BOLD))
+                        (
+                            c,
+                            Style::default()
+                                .fg(self.theme.incorrect_char)
+                                .add_modifier(Modifier::BOLD),
+                        )
                     } else if c == expected {
                         // Correct
                         (expected, Style::default().fg(self.theme.correct_char))
                     } else {
                         // Incorrect (non-space expected, wrong char typed)
-                        (expected, Style::default()
-                            .fg(self.theme.incorrect_char)
-                            .add_modifier(Modifier::BOLD))
+                        (
+                            expected,
+                            Style::default()
+                                .fg(self.theme.incorrect_char)
+                                .add_modifier(Modifier::BOLD),
+                        )
                     }
                 }
                 None => {
@@ -630,7 +693,7 @@ impl App {
             wpm: self.wpm,
             raw_wpm: self.calculate_raw_wpm(), // calculate separately
             accuracy: self.accuracy,
-            consistency: self.calculate_consistency(),  // calculate from WPM samples
+            consistency: self.calculate_consistency(), // calculate from WPM samples
             quote_length: self.quote.len() as i64,
             duration_seconds: self.started_at.unwrap().elapsed().as_secs() as i64,
         };
