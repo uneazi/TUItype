@@ -2,11 +2,11 @@ use std::time::{Duration, Instant};
 
 use crossterm::event::KeyEvent;
 use ratatui::{
+    Frame,
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
-    Frame,
 };
 
 use crate::models::{AppConfig, TestResult};
@@ -32,7 +32,9 @@ pub struct App {
     started_at: Option<Instant>,
     last_tick: Instant,
     wpm: f64,
+    animated_wpm: f64,
     wpm_history: Vec<(Instant, f64)>,
+    last_wpm_for_animation: f64,
     mistakes: usize,
     accuracy: f64,
     is_complete: bool,
@@ -79,7 +81,9 @@ impl App {
             started_at: None,
             last_tick: Instant::now(),
             wpm: 0.0,
+            animated_wpm: 0.0,
             wpm_history: Vec::new(),
+            last_wpm_for_animation: 0.0,
             mistakes: 0,
             accuracy: 0.0,
             is_complete: false,
@@ -158,6 +162,28 @@ impl App {
         if now.duration_since(self.last_tick) >= Duration::from_millis(250) {
             self.last_tick = now;
             self.recalc_metrics();
+            self.update_wpm_animation();
+        }
+    }
+
+    fn update_wpm_animation(&mut self) {
+        if self.wpm == 0.0 {
+            self.animated_wpm = 0.0;
+            self.last_wpm_for_animation = 0.0;
+            return;
+        }
+
+        if (self.wpm - self.last_wpm_for_animation).abs() < 0.5 {
+            return;
+        }
+
+        let diff = self.wpm - self.last_wpm_for_animation;
+        self.animated_wpm += diff * 0.15;
+        self.last_wpm_for_animation = self.animated_wpm;
+
+        if diff.abs() < 0.1 {
+            self.animated_wpm = self.wpm;
+            self.last_wpm_for_animation = self.wpm;
         }
     }
 
@@ -251,6 +277,8 @@ impl App {
         self.typed.clear();
         self.started_at = None;
         self.wpm = 0.0;
+        self.animated_wpm = 0.0;
+        self.last_wpm_for_animation = 0.0;
         self.accuracy = 100.0;
         self.is_complete = false;
         self.completed_at = None;
@@ -266,6 +294,8 @@ impl App {
         self.typed.clear();
         self.started_at = None;
         self.wpm = 0.0;
+        self.animated_wpm = 0.0;
+        self.last_wpm_for_animation = 0.0;
         self.accuracy = 100.0;
         self.is_complete = false;
         self.completed_at = None;
@@ -400,7 +430,7 @@ impl App {
             ),
             Span::raw(" | "),
             Span::styled(
-                format!(" WPM: {:>5.1} ", self.wpm),
+                format!(" WPM: {:>5.1} ", self.animated_wpm),
                 Style::default().fg(self.theme.wpm_color),
             ),
             Span::raw(" | "),

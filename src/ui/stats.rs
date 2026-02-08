@@ -1,11 +1,11 @@
+use crate::models::UserStats;
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    widgets::{Block, Borders, Paragraph},
     style::{Color, Modifier, Style},
     text::{Line, Span},
+    widgets::{Block, Borders, Paragraph},
 };
-use crate::models::UserStats;
 
 pub struct StatsView {
     stats: UserStats,
@@ -54,17 +54,23 @@ impl StatsView {
             Line::from(""),
             Line::from(vec![Span::styled(
                 "═══════════════════════════",
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             )])
             .alignment(Alignment::Center),
             Line::from(vec![Span::styled(
                 "   YOUR STATISTICS   ",
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             )])
             .alignment(Alignment::Center),
             Line::from(vec![Span::styled(
                 "═══════════════════════════",
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             )])
             .alignment(Alignment::Center),
             Line::from(""),
@@ -72,11 +78,15 @@ impl StatsView {
             Line::from(vec![
                 Span::styled(
                     "Total Tests: ",
-                    Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
                     format!("{}", self.stats.total_tests),
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
                 ),
             ])
             .alignment(Alignment::Center),
@@ -84,11 +94,15 @@ impl StatsView {
             Line::from(vec![
                 Span::styled(
                     "Best WPM: ",
-                    Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
                     format!("{:.1}", self.stats.best_wpm),
-                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
                 ),
             ])
             .alignment(Alignment::Center),
@@ -96,11 +110,15 @@ impl StatsView {
             Line::from(vec![
                 Span::styled(
                     "Average WPM: ",
-                    Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
                     format!("{:.1}", self.stats.avg_wpm),
-                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
                 ),
             ])
             .alignment(Alignment::Center),
@@ -108,11 +126,15 @@ impl StatsView {
             Line::from(vec![
                 Span::styled(
                     "Average Accuracy: ",
-                    Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
                     format!("{:.1}%", self.stats.avg_accuracy),
-                    Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::Magenta)
+                        .add_modifier(Modifier::BOLD),
                 ),
             ])
             .alignment(Alignment::Center),
@@ -120,11 +142,15 @@ impl StatsView {
             Line::from(vec![
                 Span::styled(
                     "Total Practice Time: ",
-                    Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
                     time_str,
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
                 ),
             ])
             .alignment(Alignment::Center),
@@ -140,9 +166,7 @@ impl StatsView {
                 Span::styled("Press ", Style::default().fg(Color::DarkGray)),
                 Span::styled(
                     "ESC",
-                    Style::default()
-                        .fg(Color::Red)
-                        .add_modifier(Modifier::BOLD),
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(" to go back", Style::default().fg(Color::DarkGray)),
             ])

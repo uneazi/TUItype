@@ -1,11 +1,11 @@
+use crate::models::TestResult;
 use ratatui::{
     Frame,
     layout::Rect,
-    widgets::{Block, Borders, List, ListItem},
-    style::{Style, Color, Modifier},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
+    widgets::{Block, Borders, List, ListItem},
 };
-use crate::models::TestResult;
 
 pub struct HistoryView {
     pub results: Vec<TestResult>,
@@ -41,14 +41,18 @@ impl HistoryView {
     }
 
     pub fn draw(&self, frame: &mut Frame, area: Rect) {
-        let items: Vec<ListItem> = self.results
+        let items: Vec<ListItem> = self
+            .results
             .iter()
             .enumerate()
             .skip(self.scroll_offset)
             .take(area.height.saturating_sub(2) as usize)
             .map(|(i, result)| {
                 let line = Line::from(vec![
-                    Span::raw(format!("{:19} ", result.timestamp.format("%Y-%m-%d %H:%M:%S"))),
+                    Span::raw(format!(
+                        "{:19} ",
+                        result.timestamp.format("%Y-%m-%d %H:%M:%S")
+                    )),
                     Span::styled(
                         format!("{:>6.1} WPM ", result.wpm),
                         Style::default().fg(Color::Cyan),
@@ -61,7 +65,9 @@ impl HistoryView {
                 ]);
 
                 let style = if i == self.selected {
-                    Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .bg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default()
                 };
@@ -70,10 +76,12 @@ impl HistoryView {
             })
             .collect();
 
-        let list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title(" Test History "));
+        let list = List::new(items).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Test History "),
+        );
 
         frame.render_widget(list, area);
     }
 }
-

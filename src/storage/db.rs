@@ -1,6 +1,6 @@
-use rusqlite::{Connection, Result, params};
-use chrono::Utc;
 use crate::models::{TestResult, UserStats};
+use chrono::Utc;
+use rusqlite::{Connection, Result, params};
 
 pub struct Database {
     conn: Connection,
@@ -57,34 +57,33 @@ impl Database {
                     quote_length, duration_seconds
              FROM test_results
              ORDER BY timestamp DESC
-             LIMIT ?1"
+             LIMIT ?1",
         )?;
 
-        let results = stmt.query_map([limit as i64], |row| {
-            Ok(TestResult {
-                id: Some(row.get(0)?),
-                timestamp: row.get::<_, String>(1)?.parse().unwrap_or(Utc::now()),
-                mode: row.get(2)?,
-                wpm: row.get(3)?,
-                raw_wpm: row.get(4)?,
-                accuracy: row.get(5)?,
-                consistency: row.get(6)?,
-                quote_length: row.get(7)?,
-                duration_seconds: row.get(8)?,
-            })
-        })?
-        .collect::<Result<Vec<_>>>()?;
+        let results = stmt
+            .query_map([limit as i64], |row| {
+                Ok(TestResult {
+                    id: Some(row.get(0)?),
+                    timestamp: row.get::<_, String>(1)?.parse().unwrap_or(Utc::now()),
+                    mode: row.get(2)?,
+                    wpm: row.get(3)?,
+                    raw_wpm: row.get(4)?,
+                    accuracy: row.get(5)?,
+                    consistency: row.get(6)?,
+                    quote_length: row.get(7)?,
+                    duration_seconds: row.get(8)?,
+                })
+            })?
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(results)
     }
 
     #[allow(dead_code)]
     pub fn get_stats(&self) -> Result<UserStats> {
-        let total_tests: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM test_results",
-            [],
-            |row| row.get(0),
-        )?;
+        let total_tests: i64 =
+            self.conn
+                .query_row("SELECT COUNT(*) FROM test_results", [], |row| row.get(0))?;
 
         let best_wpm: f64 = self.conn.query_row(
             "SELECT COALESCE(MAX(wpm), 0.0) FROM test_results",

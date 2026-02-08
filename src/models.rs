@@ -1,11 +1,11 @@
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestResult {
     pub id: Option<i64>,
     pub timestamp: DateTime<Utc>,
-    pub mode: String,           // "short", "medium", "long"
+    pub mode: String, // "short", "medium", "long"
     pub wpm: f64,
     pub raw_wpm: f64,
     pub accuracy: f64,
@@ -28,17 +28,23 @@ pub struct UserStats {
 pub struct AppConfig {
     #[serde(default = "default_theme")]
     pub theme: String,
-    
+
     #[serde(default = "default_mode")]
     pub default_mode: String,
-    
+
     #[serde(default = "default_time")]
     pub default_time: u64,
 }
 
-fn default_theme() -> String { "catppuccin-mocha".to_string() }
-fn default_mode() -> String { "medium".to_string() }
-fn default_time() -> u64 { 60 }
+fn default_theme() -> String {
+    "catppuccin-mocha".to_string()
+}
+fn default_mode() -> String {
+    "medium".to_string()
+}
+fn default_time() -> u64 {
+    60
+}
 
 impl Default for AppConfig {
     fn default() -> Self {
@@ -49,4 +55,3 @@ impl Default for AppConfig {
         }
     }
 }
-

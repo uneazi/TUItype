@@ -4,17 +4,17 @@ use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use ratatui::{backend::CrosstermBackend, Terminal};
+use ratatui::{Terminal, backend::CrosstermBackend};
 
 mod app;
 mod models;
-mod storage;
 mod quotes;
-mod ui;
+mod storage;
 mod theme;
+mod ui;
 
 use crate::app::{App, AppState};
-use crate::ui:: history::HistoryView;
+use crate::ui::history::HistoryView;
 use crate::ui::stats::StatsView;
 
 fn main() -> io::Result<()> {
@@ -52,20 +52,18 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
 
     loop {
         // Draw UI based on state
-        terminal.draw(|frame| {
-            match &app.state {
-                AppState::Testing | AppState::Results => {
-                    app.draw(frame);
+        terminal.draw(|frame| match &app.state {
+            AppState::Testing | AppState::Results => {
+                app.draw(frame);
+            }
+            AppState::History => {
+                if let Some(ref view) = history_view {
+                    view.draw(frame, frame.area());
                 }
-                AppState::History => {
-                    if let Some(ref view) = history_view {
-                        view.draw(frame, frame.area());
-                    }
-                }
-                AppState::Stats => {
-                    if let Some(ref view) = stats_view {
-                        view.draw(frame, frame.area());
-                    }
+            }
+            AppState::Stats => {
+                if let Some(ref view) = stats_view {
+                    view.draw(frame, frame.area());
                 }
             }
         })?;
@@ -75,13 +73,14 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
                     match (key.code, key.modifiers) {
-
                         (KeyCode::Char('`'), _) => {
                             break;
                         }
 
                         (KeyCode::Char('h'), KeyModifiers::CONTROL) => {
-                            let results = app.db.get_recent_results(50)
+                            let results = app
+                                .db
+                                .get_recent_results(50)
                                 .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
                             history_view = Some(HistoryView::new(results));
                             app.show_history()
@@ -89,7 +88,9 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
                         }
 
                         (KeyCode::Char('s'), KeyModifiers::CONTROL) => {
-                            let stats = app.db.get_stats()
+                            let stats = app
+                                .db
+                                .get_stats()
                                 .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
                             stats_view = Some(StatsView::new(stats));
                             app.show_stats()
@@ -110,19 +111,17 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
                             app.change_mode(next_mode);
                         }
 
-                        (KeyCode::Esc, _) => {
-                            match app.state {
-                                AppState::History => {
-                                    app.back_to_testing();
-                                    history_view = None;
-                                }
-                                AppState::Stats => {
-                                    app.back_to_testing();
-                                    stats_view = None;
-                                }
-                                _ => {}
+                        (KeyCode::Esc, _) => match app.state {
+                            AppState::History => {
+                                app.back_to_testing();
+                                history_view = None;
                             }
-                        }
+                            AppState::Stats => {
+                                app.back_to_testing();
+                                stats_view = None;
+                            }
+                            _ => {}
+                        },
 
                         (KeyCode::Up, _) => {
                             if let Some(ref mut view) = history_view {

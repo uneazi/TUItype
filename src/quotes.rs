@@ -1,6 +1,6 @@
-use serde::Deserialize;
-use rand::prelude::*;
 use anyhow::Result;
+use rand::prelude::*;
+use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Quote {
@@ -28,7 +28,7 @@ impl QuoteMode {
     pub fn length_range(&self) -> (usize, usize) {
         match self {
             QuoteMode::Short => (0, 100),
-            QuoteMode::Medium => (101, 300),  // Match MonkeyType's groups
+            QuoteMode::Medium => (101, 300), // Match MonkeyType's groups
             QuoteMode::Long => (301, usize::MAX),
         }
     }
@@ -43,7 +43,9 @@ pub struct QuoteManager {
 impl QuoteManager {
     pub fn new() -> Result<Self> {
         let file: MonkeyTypeFile = serde_json::from_str(QUOTES_JSON)?;
-        Ok(Self { quotes: file.quotes })
+        Ok(Self {
+            quotes: file.quotes,
+        })
     }
 
     pub fn get_random_quote(&self, mode: QuoteMode) -> Option<&Quote> {
