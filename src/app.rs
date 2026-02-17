@@ -1,56 +1,46 @@
 use std::time::{Duration, Instant};
 
 use crossterm::event::KeyEvent;
-use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Wrap},
-    Frame,
-};
+use ratatui::Frame;
 
+use crate::core::metrics;
+use crate::core::typing_session::TypingSession;
+use crate::input::handler::{AppAction, InputHandler};
 use crate::models::{AppConfig, TestResult};
 use crate::quotes::{QuoteManager, QuoteMode};
+use crate::state::{AppState, StateMachine};
 use crate::storage::config::ConfigManager;
 use crate::storage::db::Database;
 use crate::theme::Theme;
-use crate::ui::keyboard::render_keyboard;
-use chrono::Utc;
-
-pub enum AppState {
-    Testing,
-    Results,
-    History,
-    Stats,
-}
+use crate::ui::results_view::ResultsView;
+use crate::ui::typing_view::TypingView;
 
 pub struct App {
-    quote: String,
+    // Core state
+    state_machine: StateMachine,
+    session: TypingSession,
     quote_source: String,
-    pub quote_mode: QuoteMode,
+    quote_mode: QuoteMode,
     quote_manager: QuoteManager,
-    typed: String,
-    started_at: Option<Instant>,
-    last_tick: Instant,
-    wpm: f64,
-    animated_wpm: f64,
-    wpm_history: Vec<(Instant, f64)>,
-    last_wpm_for_animation: f64,
-    mistakes: usize,
-    accuracy: f64,
-    is_complete: bool,
-    completed_at: Option<Instant>,
-    final_wpm: f64,
-    final_accuracy: f64,
-    final_duration: Duration,
-    pub state: AppState,
+
+    // Configuration
     pub db: Database,
     pub config: AppConfig,
-    pub last_result: Option<TestResult>,
     theme: Theme,
-    pub show_keyboard: bool,
+
+    // UI state
+    typing_view: TypingView,
+    animated_wpm: f64,
+    last_wpm_for_animation: f64,
+    last_tick: Instant,
+
+    // Input handling
+    input_handler: InputHandler,
     pressed_keys: Vec<char>,
     pressed_key_timestamp: Option<Instant>,
+
+    // Results
+    pub last_result: Option<TestResult>,
 }
 
 impl App {
@@ -76,115 +66,96 @@ impl App {
         // Load theme from config
         let theme = Theme::from_name(&config.theme);
 
+        let session = TypingSession::new(quote_obj.text.clone());
+        let typing_view = TypingView::new(false, quote_mode);
+
         Ok(Self {
-            quote: quote_obj.text.clone(),
+            state_machine: StateMachine::new(AppState::Testing),
+            session,
             quote_source: quote_obj.source.clone(),
             quote_mode,
             quote_manager,
-            typed: String::new(),
-            started_at: None,
-            last_tick: Instant::now(),
-            wpm: 0.0,
-            animated_wpm: 0.0,
-            wpm_history: Vec::new(),
-            last_wpm_for_animation: 0.0,
-            mistakes: 0,
-            accuracy: 0.0,
-            is_complete: false,
-            completed_at: None,
-            final_wpm: 0.0,
-            final_accuracy: 0.0,
-            final_duration: Duration::from_secs(0),
-            state: AppState::Testing,
             db,
             config,
-            last_result: None,
             theme,
-            show_keyboard: false,
+            typing_view,
+            animated_wpm: 0.0,
+            last_wpm_for_animation: 0.0,
+            last_tick: Instant::now(),
+            input_handler: InputHandler::new(),
             pressed_keys: Vec::new(),
             pressed_key_timestamp: None,
+            last_result: None,
         })
     }
 
-    pub fn on_key(&mut self, key: KeyEvent) {
-        use crossterm::event::{KeyCode, KeyModifiers};
+    pub fn handle_input(&mut self, key: KeyEvent) -> Option<AppAction> {
+        let action = self
+            .input_handler
+            .handle(key, self.state(), self.session.is_complete());
 
-        if self.is_complete {
-            return;
-        }
-
-        if self.started_at.is_none() {
-            self.started_at = Some(Instant::now());
-        }
-
-        match (key.code, key.modifiers) {
-            (KeyCode::Char(c), KeyModifiers::SHIFT) => {
-                let expected = self.quote.chars().nth(self.typed.len());
-                let typed_char = c.to_ascii_uppercase();
-                if expected != Some(typed_char) {
-                    self.mistakes += 1;
-                }
-                self.typed.push(typed_char);
+        match &action {
+            AppAction::TypeChar(c) => {
+                let is_complete = self.session.type_char(*c);
                 self.pressed_keys.clear();
-                self.pressed_keys.push(typed_char);
-                self.pressed_keys.push('⇧');
+                self.pressed_keys.push(*c);
                 self.pressed_key_timestamp = Some(Instant::now());
-            }
 
-            (KeyCode::Char(c), _) => {
-                let expected = self.quote.chars().nth(self.typed.len());
-                if expected != Some(c) {
-                    self.mistakes += 1;
+                if is_complete {
+                    self.finish_test();
                 }
-                self.typed.push(c);
-                self.pressed_keys.clear();
-                self.pressed_keys.push(c);
-                self.pressed_key_timestamp = Some(Instant::now());
             }
-
-            (KeyCode::Backspace, KeyModifiers::ALT) => {
-                // Alt+Backspace: delete whole word
-                self.delete_word();
+            AppAction::Backspace => {
+                self.session.backspace();
             }
-
-            (KeyCode::Backspace, _) => {
-                // Regular backspace
-                self.typed.pop();
+            AppAction::DeleteWord => {
+                self.session.delete_word();
             }
-
+            AppAction::CycleMode => {
+                self.quote_mode = match self.quote_mode {
+                    QuoteMode::Short => QuoteMode::Medium,
+                    QuoteMode::Medium => QuoteMode::Long,
+                    QuoteMode::Long => QuoteMode::Short,
+                };
+                self.reset();
+            }
+            AppAction::NewQuote => {
+                self.reset();
+            }
+            AppAction::Restart => {
+                self.restart();
+            }
+            AppAction::ToggleKeyboard => {
+                let new_show = !self.typing_view.show_keyboard();
+                self.typing_view = TypingView::new(new_show, self.quote_mode);
+            }
+            AppAction::CycleTheme => {
+                self.cycle_theme();
+            }
+            AppAction::ShowHistory => {
+                self.state_machine.transition(AppState::History);
+            }
+            AppAction::ShowStats => {
+                self.state_machine.transition(AppState::Stats);
+            }
+            AppAction::BackToTesting => {
+                self.state_machine.transition(AppState::Testing);
+            }
             _ => {}
         }
 
-        self.recalc_metrics();
-        self.check_completion();
-    }
-
-    fn delete_word(&mut self) {
-        // Find the start of the current word (from right)
-        let mut start = self.typed.len();
-
-        // Move left until we hit a non-word character or beginning
-        while start > 0 {
-            let ch = self.typed.as_bytes()[start - 1];
-            if ch.is_ascii_whitespace() || !ch.is_ascii_alphanumeric() {
-                break;
-            }
-            start -= 1;
-        }
-
-        // Remove characters from start to end
-        self.typed.drain(start..);
+        Some(action)
     }
 
     pub fn on_tick(&mut self) {
-        if self.is_complete {
+        if self.session.is_complete() {
             return;
         }
 
         let now = Instant::now();
         if now.duration_since(self.last_tick) >= Duration::from_millis(250) {
             self.last_tick = now;
-            self.recalc_metrics();
+            self.session.update_metrics();
             self.update_wpm_animation();
         }
 
@@ -197,607 +168,59 @@ impl App {
     }
 
     fn update_wpm_animation(&mut self) {
-        if self.wpm == 0.0 {
-            self.animated_wpm = 0.0;
-            self.last_wpm_for_animation = 0.0;
-            return;
-        }
-
-        if (self.wpm - self.last_wpm_for_animation).abs() < 0.5 {
-            return;
-        }
-
-        let diff = self.wpm - self.last_wpm_for_animation;
-        self.animated_wpm += diff * 0.15;
-        self.last_wpm_for_animation = self.animated_wpm;
-
-        if diff.abs() < 0.1 {
-            self.animated_wpm = self.wpm;
-            self.last_wpm_for_animation = self.wpm;
-        }
-    }
-
-    fn recalc_metrics(&mut self) {
-        // Accuracy
-        let mut correct = 0usize;
-        let attempted = self.typed.len().max(1); // avoid div by zero
-
-        for (i, ch) in self.typed.chars().enumerate() {
-            if self.quote.chars().nth(i) == Some(ch) {
-                correct += 1;
-            }
-        }
-
-        self.accuracy = (correct as f64 / attempted as f64) * 100.0;
-
-        // WPM
-        if let Some(start) = self.started_at {
-            let elapsed = start.elapsed().as_secs_f64().max(1.0 / 60.0);
-            let chars_typed = self.typed.len() as f64;
-            let words = chars_typed / 5.0;
-            self.wpm = words / (elapsed / 60.0);
-
-            // Record WPM samples for consistency calculation
-            if self.wpm > 0.0 {
-                self.wpm_history.push((Instant::now(), self.wpm));
-            }
-        } else {
-            self.wpm = 0.0;
-        }
-    }
-
-    fn calculate_raw_wpm(&self) -> f64 {
-        if let Some(start) = self.started_at {
-            let elapsed = start.elapsed().as_secs_f64().max(1.0 / 60.0);
-            let total_chars = self.typed.len() as f64; // All chars, including mistakes
-            let words = total_chars / 5.0;
-            words / (elapsed / 60.0)
-        } else {
-            0.0
-        }
-    }
-
-    // Calculate WPM consistency
-    fn calculate_consistency(&self) -> f64 {
-        if self.wpm_history.len() < 2 {
-            return 100.0;
-        }
-
-        let wpms: Vec<f64> = self.wpm_history.iter().map(|(_, wpm)| *wpm).collect();
-        let mean = wpms.iter().sum::<f64>() / wpms.len() as f64;
-        let variance = wpms.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / wpms.len() as f64;
-        let std_dev = variance.sqrt();
-
-        // Convert to percentage (lower std_dev = higher consistency)
-        ((mean - std_dev) / mean * 100.0).max(0.0).min(100.0)
-    }
-
-    fn check_completion(&mut self) {
-        // Completion conditions:
-        // 1. Typed length matches quote length
-        // 2. Last character is correct
-        if self.typed.len() == self.quote.len() {
-            // Check if last character matches
-            let last_typed = self.typed.chars().last();
-            let last_quote = self.quote.chars().last();
-
-            if last_typed == last_quote {
-                // Mark as complete and freeze metrics
-                self.is_complete = true;
-                self.completed_at = Some(Instant::now());
-                self.final_wpm = self.wpm;
-                self.final_accuracy = self.accuracy;
-
-                if let Some(start) = self.started_at {
-                    self.final_duration = start.elapsed();
-                }
-
-                // Save to database
-                self.finish_test();
-            }
-        }
-    }
-
-    pub fn reset(&mut self) {
-        // Get a new random quote
-        if let Some(quote_obj) = self.quote_manager.get_random_quote(self.quote_mode) {
-            self.quote = quote_obj.text.clone();
-            self.quote_source = quote_obj.source.clone();
-        }
-        self.typed.clear();
-        self.started_at = None;
-        self.wpm = 0.0;
-        self.animated_wpm = 0.0;
-        self.last_wpm_for_animation = 0.0;
-        self.accuracy = 100.0;
-        self.is_complete = false;
-        self.completed_at = None;
-        self.final_wpm = 0.0;
-        self.final_accuracy = 0.0;
-        self.final_duration = Duration::from_secs(0);
-        self.last_tick = Instant::now();
-        self.wpm_history.clear();
-        self.mistakes = 0;
-        self.pressed_keys.clear();
-        self.pressed_key_timestamp = None;
-    }
-
-    pub fn restart(&mut self) {
-        self.typed.clear();
-        self.started_at = None;
-        self.wpm = 0.0;
-        self.animated_wpm = 0.0;
-        self.last_wpm_for_animation = 0.0;
-        self.accuracy = 100.0;
-        self.is_complete = false;
-        self.completed_at = None;
-        self.final_wpm = 0.0;
-        self.final_accuracy = 0.0;
-        self.final_duration = Duration::from_secs(0);
-        self.last_tick = Instant::now();
-        self.wpm_history.clear();
-        self.mistakes = 0;
-    }
-
-    pub fn is_complete(&self) -> bool {
-        self.is_complete
+        self.animated_wpm = metrics::animate_wpm(
+            self.animated_wpm,
+            self.session.wpm(),
+            &mut self.last_wpm_for_animation,
+        );
     }
 
     pub fn draw(&self, frame: &mut Frame) {
-        if self.is_complete {
-            self.draw_results(frame);
-        } else {
-            self.draw_typing_screen(frame);
+        match self.state() {
+            AppState::Testing if self.session.is_complete() => {
+                ResultsView::draw(frame, &self.session, &self.quote_source, &self.theme);
+            }
+            AppState::Testing => {
+                self.typing_view.draw(
+                    frame,
+                    &self.session,
+                    &self.quote_source,
+                    &self.theme,
+                    self.animated_wpm,
+                );
+            }
+            _ => {} // History and Stats are handled separately
         }
     }
 
-    // Footer with quote source
-    fn quote_footer<'a>(&'a self) -> Paragraph<'a> {
-        Paragraph::new(format!("Source: {}", self.quote_source))
-            .block(
-                Block::default()
-                    .borders(Borders::TOP)
-                    .title("Quote Attribution ")
-                    .title_style(Style::default().fg(self.theme.title_color)),
-            )
-            .style(Style::default().fg(Color::DarkGray))
-    }
-
-    fn calculate_cursor_row(&self, width: u16) -> u16 {
-        if width < 2 {
-            return 0;
+    fn finish_test(&mut self) {
+        if let Some(result) = self.session.final_result() {
+            self.db.save_result(&result).ok();
+            self.last_result = Some(result);
         }
-        let width = width as usize;
-        let cursor = self.typed.len();
+        self.state_machine.transition(AppState::Results);
+    }
 
-        let mut row = 0;
-        let mut line_len = 0;
-
-        let chars: Vec<char> = self.quote.chars().collect();
-        let mut i = 0;
-
-        while i < chars.len() {
-            // Find word extent
-            let start = i;
-            while i < chars.len() && chars[i] != ' ' {
-                i += 1;
-            }
-            let end = i;
-            let word_len = end - start;
-
-            // Calculate if word fits
-            // Space is needed if not start of line
-            let space = if line_len == 0 { 0 } else { 1 };
-
-            if line_len + space + word_len > width {
-                row += 1;
-                line_len = 0;
-            }
-
-            // Add word
-            if line_len > 0 {
-                line_len += 1;
-            }
-            line_len += word_len;
-
-            // Check cursor (word)
-            if cursor >= start && cursor <= end {
-                return row;
-            }
-
-            // Handle spaces after word
-            while i < chars.len() && chars[i] == ' ' {
-                i += 1;
-            }
-
-            // Check cursor (spaces)
-            // If cursor is in the spaces we just skipped (start was `end`, now `i`)
-            // Range (end, i]
-            if cursor > end && cursor <= i {
-                return row;
-            }
+    pub fn reset(&mut self) {
+        if let Some(quote_obj) = self.quote_manager.get_random_quote(self.quote_mode) {
+            self.session.reset(quote_obj.text.clone());
+            self.quote_source = quote_obj.source.clone();
         }
-
-        row
+        self.animated_wpm = 0.0;
+        self.last_wpm_for_animation = 0.0;
+        self.last_tick = Instant::now();
+        self.state_machine = StateMachine::new(AppState::Testing);
+        self.typing_view = TypingView::new(self.typing_view.show_keyboard(), self.quote_mode);
     }
 
-    fn draw_typing_screen(&self, frame: &mut Frame) {
-        let keyboard_height: u16 = if self.show_keyboard { 11 } else { 0 };
-
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(
-                [
-                    Constraint::Length(5),               // header
-                    Constraint::Min(3),                  // quote
-                    Constraint::Length(keyboard_height), // keyboard (optional)
-                    Constraint::Length(3),               // footer
-                ]
-                .as_ref(),
-            )
-            .split(frame.area());
-
-        // Build mode string
-        let mode_str = match self.quote_mode {
-            QuoteMode::Short => "SHORT",
-            QuoteMode::Medium => "MEDIUM",
-            QuoteMode::Long => "LONG",
-        };
-
-        // First line: Keybinds
-        let keybinds_line1 = Line::from(vec![Span::styled(
-            " TAB: Mode | Ctrl+H: History | Ctrl+S: Stats | Ctrl+F: Keyboard ",
-            Style::default().fg(Color::DarkGray),
-        )]);
-        // Second line: Keybinds
-        let keybinds_line2 = Line::from(vec![Span::styled(
-            " Ctrl+T: Theme | Ctrl+N: New Quote | Ctrl+R: Restart | `: Quit ",
-            Style::default().fg(Color::DarkGray),
-        )]);
-
-        // Third line: Stats
-        let stats_line = Line::from(vec![
-            Span::styled(
-                format!(" [{}] ", mode_str),
-                Style::default()
-                    .fg(self.theme.mode_color)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" | "),
-            Span::styled(
-                format!(" WPM: {:>5.1} ", self.animated_wpm),
-                Style::default().fg(self.theme.wpm_color),
-            ),
-            Span::raw(" | "),
-            Span::styled(
-                format!(" Acc: {:>5.1}% ", self.accuracy),
-                Style::default().fg(self.theme.accuracy_color),
-            ),
-            Span::raw(" | "),
-            Span::styled(
-                format!(" Errors: {} ", self.mistakes),
-                Style::default().fg(self.theme.error_color),
-            ),
-        ]);
-
-        // Combine both lines
-        let header_text = vec![keybinds_line1, keybinds_line2, stats_line];
-
-        let header = Paragraph::new(header_text).block(
-            Block::default()
-                .borders(Borders::BOTTOM)
-                .title(" TUItype ")
-                .title_style(Style::default().fg(self.theme.title_color)),
-        );
-        frame.render_widget(header, chunks[0]);
-
-        let quote_area = chunks[1];
-        let horizontal_chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(20),
-                Constraint::Percentage(60),
-                Constraint::Percentage(20),
-            ])
-            .split(quote_area);
-
-        let vertical_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Percentage(30),
-                Constraint::Min(5),
-                Constraint::Percentage(30),
-            ])
-            .split(horizontal_chunks[1]);
-
-        let quote_spans = self.render_quote();
-
-        // Calculate scroll to keep cursor visible
-        let inner_width = vertical_chunks[1].width.saturating_sub(2); // subtract borders
-        let cursor_row = self.calculate_cursor_row(inner_width);
-        let height = vertical_chunks[1].height.saturating_sub(2); // subtract borders
-
-        // Center the cursor
-        let scroll_offset = if cursor_row > height / 2 {
-            cursor_row - height / 2
-        } else {
-            0
-        };
-
-        let quote_block = Paragraph::new(quote_spans)
-            .scroll((scroll_offset, 0))
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(
-                        Style::default()
-                            .fg(self.theme.border_color)
-                            .add_modifier(Modifier::BOLD),
-                    )
-                    .title(" ═══ QUOTE ═══ ")
-                    .title_style(Style::default().fg(self.theme.title_color))
-                    .title_alignment(Alignment::Center),
-            )
-            .alignment(Alignment::Center)
-            .wrap(Wrap { trim: true })
-            .style(Style::default().add_modifier(Modifier::BOLD));
-
-        frame.render_widget(quote_block, vertical_chunks[1]);
-
-        let footer = self.quote_footer();
-        frame.render_widget(footer, chunks[3]);
-
-        if self.show_keyboard {
-            render_keyboard(
-                chunks[2],
-                frame.buffer_mut(),
-                self.get_next_char(),
-                &self.pressed_keys,
-                &self.theme,
-            );
-        }
+    pub fn restart(&mut self) {
+        self.session.restart();
+        self.animated_wpm = 0.0;
+        self.last_wpm_for_animation = 0.0;
+        self.last_tick = Instant::now();
     }
 
-    fn draw_results(&self, frame: &mut Frame) {
-        // Create centered vertical layout
-        let vertical_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Percentage(20),
-                Constraint::Min(15),
-                Constraint::Percentage(20),
-                Constraint::Length(3),
-            ])
-            .split(frame.area());
-
-        // Create centered horizontal layout
-        let horizontal_chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(25),
-                Constraint::Percentage(50),
-                Constraint::Percentage(25),
-            ])
-            .split(vertical_chunks[1]);
-
-        // Build results content
-        let duration_secs = self.final_duration.as_secs_f64();
-
-        let results_text = vec![
-            Line::from(""),
-            Line::from(vec![Span::styled(
-                "╔══════════════════════════╗",
-                Style::default()
-                    .fg(self.theme.success_color)
-                    .add_modifier(Modifier::BOLD),
-            )])
-            .alignment(Alignment::Center),
-            Line::from(vec![Span::styled(
-                "║      TEST COMPLETE!      ║",
-                Style::default()
-                    .fg(self.theme.success_color)
-                    .add_modifier(Modifier::BOLD),
-            )])
-            .alignment(Alignment::Center),
-            Line::from(vec![Span::styled(
-                "╚══════════════════════════╝",
-                Style::default()
-                    .fg(self.theme.success_color)
-                    .add_modifier(Modifier::BOLD),
-            )])
-            .alignment(Alignment::Center),
-            Line::from(""),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled(
-                    "WPM: ",
-                    Style::default()
-                        .fg(Color::White)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    format!("{:.1}", self.final_wpm),
-                    Style::default()
-                        .fg(self.theme.wpm_color)
-                        .add_modifier(Modifier::BOLD),
-                ),
-            ])
-            .alignment(Alignment::Center),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled(
-                    "Accuracy: ",
-                    Style::default()
-                        .fg(Color::White)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    format!("{:.1}%", self.final_accuracy),
-                    Style::default()
-                        .fg(self.theme.accuracy_color)
-                        .add_modifier(Modifier::BOLD),
-                ),
-            ])
-            .alignment(Alignment::Center),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled(
-                    "Time: ",
-                    Style::default()
-                        .fg(Color::White)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    format!("{:.2}s", duration_secs),
-                    Style::default()
-                        .fg(Color::Magenta)
-                        .add_modifier(Modifier::BOLD),
-                ),
-            ])
-            .alignment(Alignment::Center),
-            Line::from(""),
-            Line::from(""),
-            Line::from(vec![Span::styled(
-                "─────────────────────────────",
-                Style::default().fg(Color::DarkGray),
-            )])
-            .alignment(Alignment::Center),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("Press ", Style::default().fg(Color::DarkGray)),
-                Span::styled(
-                    "SPACE",
-                    Style::default()
-                        .fg(self.theme.success_color)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(" to restart", Style::default().fg(Color::DarkGray)),
-            ])
-            .alignment(Alignment::Center),
-            Line::from(vec![
-                Span::styled("Press ", Style::default().fg(Color::DarkGray)),
-                Span::styled(
-                    "`",
-                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(" to quit", Style::default().fg(Color::DarkGray)),
-            ])
-            .alignment(Alignment::Center),
-        ];
-
-        let results_block = Paragraph::new(results_text).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(
-                    Style::default()
-                        .fg(self.theme.success_color)
-                        .add_modifier(Modifier::BOLD),
-                )
-                .title(" ═══ RESULTS ═══ ")
-                .title_style(Style::default().fg(self.theme.title_color))
-                .title_alignment(Alignment::Center),
-        );
-
-        frame.render_widget(results_block, horizontal_chunks[1]);
-
-        let footer = self.quote_footer();
-        frame.render_widget(footer, vertical_chunks[3]);
-    }
-
-    fn render_quote(&self) -> Line<'_> {
-        let mut line = Line::default();
-
-        let quote_chars: Vec<char> = self.quote.chars().collect();
-        let typed_chars: Vec<char> = self.typed.chars().collect();
-        let len = quote_chars.len();
-
-        for i in 0..len {
-            let expected = quote_chars[i];
-            let typed = typed_chars.get(i).copied();
-
-            let (ch_to_show, style) = match typed {
-                Some(c) => {
-                    if expected == ' ' && c != ' ' {
-                        // SPECIAL CASE: space expected, wrong char typed
-                        (
-                            c,
-                            Style::default()
-                                .fg(self.theme.incorrect_char)
-                                .add_modifier(Modifier::BOLD),
-                        )
-                    } else if c == expected {
-                        // Correct
-                        (expected, Style::default().fg(self.theme.correct_char))
-                    } else {
-                        // Incorrect (non-space expected, wrong char typed)
-                        (
-                            expected,
-                            Style::default()
-                                .fg(self.theme.incorrect_char)
-                                .add_modifier(Modifier::BOLD),
-                        )
-                    }
-                }
-                None => {
-                    // Not yet typed
-                    (expected, Style::default().fg(self.theme.untyped_char))
-                }
-            };
-
-            // Cursor highlight on next char to type
-            let style = if i == typed_chars.len() && !self.is_complete {
-                style
-                    .fg(self.theme.cursor_fg)
-                    .bg(self.theme.cursor_bg)
-                    .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
-            } else {
-                style
-            };
-
-            line.spans.push(Span::styled(ch_to_show.to_string(), style));
-        }
-
-        line
-    }
-
-    pub fn finish_test(&mut self) {
-        let result = TestResult {
-            id: None,
-            timestamp: Utc::now(),
-            mode: "medium".to_string(),
-            wpm: self.wpm,
-            raw_wpm: self.calculate_raw_wpm(), // calculate separately
-            accuracy: self.accuracy,
-            consistency: self.calculate_consistency(), // calculate from WPM samples
-            quote_length: self.quote.len() as i64,
-            duration_seconds: self.started_at.unwrap().elapsed().as_secs() as i64,
-        };
-
-        self.db.save_result(&result).ok();
-        self.last_result = Some(result);
-        self.state = AppState::Results;
-    }
-
-    pub fn change_mode(&mut self, mode: QuoteMode) {
-        self.quote_mode = mode;
-        self.reset(); // This will get a new quote in the new mode
-    }
-
-    pub fn show_history(&mut self) -> anyhow::Result<()> {
-        self.state = AppState::History;
-        Ok(())
-    }
-
-    pub fn show_stats(&mut self) -> anyhow::Result<()> {
-        self.state = AppState::Stats;
-        Ok(())
-    }
-
-    pub fn back_to_testing(&mut self) {
-        self.state = AppState::Testing;
-    }
-
-    pub fn cycle_theme(&mut self) {
+    fn cycle_theme(&mut self) {
         let themes = Theme::available_themes();
         let current_index = themes
             .iter()
@@ -805,22 +228,18 @@ impl App {
             .unwrap_or(0);
         let next_index = (current_index + 1) % themes.len();
         self.theme = Theme::from_name(themes[next_index]);
-        // Update config
         self.config.theme = self.theme.name.clone();
         self.save_config().ok();
-    }
-
-    pub fn toggle_keyboard(&mut self) {
-        self.show_keyboard = !self.show_keyboard;
-    }
-
-    pub fn get_next_char(&self) -> Option<char> {
-        self.quote.chars().nth(self.typed.len())
     }
 
     pub fn save_config(&self) -> anyhow::Result<()> {
         let config_mgr = ConfigManager::new()?;
         config_mgr.save(&self.config)?;
         Ok(())
+    }
+
+    // Getters
+    pub fn state(&self) -> AppState {
+        self.state_machine.current()
     }
 }

@@ -367,7 +367,7 @@ impl KeyboardLayout {
 
         Self { rows, home_row }
     }
-// TODO: Add functionality to shift keys
+    // TODO: Add functionality to shift keys
     #[allow(dead_code)]
     pub fn get_finger(&self, key: char) -> Option<Finger> {
         let key_lower = key.to_ascii_lowercase();
