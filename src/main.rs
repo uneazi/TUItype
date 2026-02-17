@@ -4,9 +4,10 @@ use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use ratatui::{Terminal, backend::CrosstermBackend};
+use ratatui::{backend::CrosstermBackend, Terminal};
 
 mod app;
+mod keyboard;
 mod models;
 mod quotes;
 mod storage;
@@ -149,6 +150,10 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
 
                         (KeyCode::Char('r'), KeyModifiers::CONTROL) => {
                             app.restart();
+                        }
+
+                        (KeyCode::Char('f'), KeyModifiers::CONTROL) => {
+                            app.toggle_keyboard();
                         }
 
                         _ => {

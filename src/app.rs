@@ -2,11 +2,11 @@ use std::time::{Duration, Instant};
 
 use crossterm::event::KeyEvent;
 use ratatui::{
-    Frame,
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
+    Frame,
 };
 
 use crate::models::{AppConfig, TestResult};
@@ -14,6 +14,7 @@ use crate::quotes::{QuoteManager, QuoteMode};
 use crate::storage::config::ConfigManager;
 use crate::storage::db::Database;
 use crate::theme::Theme;
+use crate::ui::keyboard::render_keyboard;
 use chrono::Utc;
 
 pub enum AppState {
@@ -47,6 +48,7 @@ pub struct App {
     pub config: AppConfig,
     pub last_result: Option<TestResult>,
     theme: Theme,
+    pub show_keyboard: bool,
 }
 
 impl App {
@@ -96,6 +98,7 @@ impl App {
             config,
             last_result: None,
             theme,
+            show_keyboard: false,
         })
     }
 
@@ -390,13 +393,16 @@ impl App {
     }
 
     fn draw_typing_screen(&self, frame: &mut Frame) {
+        let keyboard_height: u16 = if self.show_keyboard { 11 } else { 0 };
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints(
                 [
-                    Constraint::Length(5), // header
-                    Constraint::Min(3),    // quote
-                    Constraint::Length(3), // footer
+                    Constraint::Length(5),               // header
+                    Constraint::Min(3),                  // quote
+                    Constraint::Length(keyboard_height), // keyboard (optional)
+                    Constraint::Length(3),               // footer
                 ]
                 .as_ref(),
             )
@@ -411,7 +417,7 @@ impl App {
 
         // First line: Keybinds
         let keybinds_line1 = Line::from(vec![Span::styled(
-            " TAB: Mode | Ctrl+H: History | Ctrl+S: Stats ",
+            " TAB: Mode | Ctrl+H: History | Ctrl+S: Stats | Ctrl+F: Keyboard ",
             Style::default().fg(Color::DarkGray),
         )]);
         // Second line: Keybinds
@@ -510,7 +516,16 @@ impl App {
         frame.render_widget(quote_block, vertical_chunks[1]);
 
         let footer = self.quote_footer();
-        frame.render_widget(footer, chunks[2]);
+        frame.render_widget(footer, chunks[3]);
+
+        if self.show_keyboard {
+            render_keyboard(
+                chunks[2],
+                frame.buffer_mut(),
+                self.get_next_char(),
+                &self.theme,
+            );
+        }
     }
 
     fn draw_results(&self, frame: &mut Frame) {
@@ -763,6 +778,14 @@ impl App {
         // Update config
         self.config.theme = self.theme.name.clone();
         self.save_config().ok();
+    }
+
+    pub fn toggle_keyboard(&mut self) {
+        self.show_keyboard = !self.show_keyboard;
+    }
+
+    pub fn get_next_char(&self) -> Option<char> {
+        self.quote.chars().nth(self.typed.len())
     }
 
     pub fn save_config(&self) -> anyhow::Result<()> {

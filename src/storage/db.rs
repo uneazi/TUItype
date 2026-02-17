@@ -1,6 +1,6 @@
 use crate::models::{TestResult, UserStats};
 use chrono::Utc;
-use rusqlite::{Connection, Result, params};
+use rusqlite::{params, Connection, Result};
 
 pub struct Database {
     conn: Connection,
