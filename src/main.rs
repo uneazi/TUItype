@@ -65,11 +65,27 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
             AppState::History => {
                 if let Some(ref view) = history_view {
                     view.draw(frame, frame.area());
+                } else {
+                    // Draw placeholder if view hasn't been created yet
+                    let placeholder = ratatui::widgets::Paragraph::new("Loading history...").block(
+                        ratatui::widgets::Block::default()
+                            .borders(ratatui::widgets::Borders::ALL)
+                            .title(" History "),
+                    );
+                    frame.render_widget(placeholder, frame.area());
                 }
             }
             AppState::Stats => {
                 if let Some(ref view) = stats_view {
                     view.draw(frame, frame.area());
+                } else {
+                    // Draw placeholder if view hasn't been created yet
+                    let placeholder = ratatui::widgets::Paragraph::new("Loading stats...").block(
+                        ratatui::widgets::Block::default()
+                            .borders(ratatui::widgets::Borders::ALL)
+                            .title(" Stats "),
+                    );
+                    frame.render_widget(placeholder, frame.area());
                 }
             }
         })?;
@@ -81,20 +97,22 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
                     if let Some(action) = app.handle_input(key) {
                         match action {
                             AppAction::Quit => break,
-                            AppAction::ShowHistory => {
-                                let results = app
-                                    .db
-                                    .get_recent_results(50)
-                                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-                                history_view = Some(HistoryView::new(results));
-                            }
-                            AppAction::ShowStats => {
-                                let stats = app
-                                    .db
-                                    .get_stats()
-                                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-                                stats_view = Some(StatsView::new(stats));
-                            }
+                            AppAction::ShowHistory => match app.db.get_recent_results(50) {
+                                Ok(results) => {
+                                    history_view = Some(HistoryView::new(results));
+                                }
+                                Err(e) => {
+                                    eprintln!("Failed to load history: {}", e);
+                                }
+                            },
+                            AppAction::ShowStats => match app.db.get_stats() {
+                                Ok(stats) => {
+                                    stats_view = Some(StatsView::new(stats));
+                                }
+                                Err(e) => {
+                                    eprintln!("Failed to load stats: {}", e);
+                                }
+                            },
                             AppAction::BackToTesting => {
                                 history_view = None;
                                 stats_view = None;

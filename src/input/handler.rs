@@ -38,20 +38,32 @@ impl InputHandler {
             (KeyCode::Tab, _, _) => AppAction::CycleMode,
 
             // Theme cycling
-            (KeyCode::Char('t'), KeyModifiers::CONTROL, _) => AppAction::CycleTheme,
+            (KeyCode::Char('t'), mods, _) if mods.contains(KeyModifiers::CONTROL) => {
+                AppAction::CycleTheme
+            }
 
             // Toggle keyboard
-            (KeyCode::Char('f'), KeyModifiers::CONTROL, _) => AppAction::ToggleKeyboard,
+            (KeyCode::Char('f'), mods, _) if mods.contains(KeyModifiers::CONTROL) => {
+                AppAction::ToggleKeyboard
+            }
 
             // New quote / restart
-            (KeyCode::Char('n'), KeyModifiers::CONTROL, _) => AppAction::NewQuote,
-            (KeyCode::Char('r'), KeyModifiers::CONTROL, _) => AppAction::Restart,
+            (KeyCode::Char('n'), mods, _) if mods.contains(KeyModifiers::CONTROL) => {
+                AppAction::NewQuote
+            }
+            (KeyCode::Char('r'), mods, _) if mods.contains(KeyModifiers::CONTROL) => {
+                AppAction::Restart
+            }
 
             // History view
-            (KeyCode::Char('h'), KeyModifiers::CONTROL, _) => AppAction::ShowHistory,
+            (KeyCode::Char('h'), mods, _) if mods.contains(KeyModifiers::CONTROL) => {
+                AppAction::ShowHistory
+            }
 
             // Stats view
-            (KeyCode::Char('s'), KeyModifiers::CONTROL, _) => AppAction::ShowStats,
+            (KeyCode::Char('s'), mods, _) if mods.contains(KeyModifiers::CONTROL) => {
+                AppAction::ShowStats
+            }
 
             // Escape to go back
             (KeyCode::Esc, _, AppState::History | AppState::Stats) => AppAction::BackToTesting,
@@ -62,24 +74,26 @@ impl InputHandler {
 
             // Select/Enter
             (KeyCode::Enter, _, _) => {
-                if is_complete && state == AppState::Testing {
+                if is_complete && (state == AppState::Testing || state == AppState::Results) {
                     AppAction::NewQuote
                 } else {
                     AppAction::Select
                 }
             }
 
-            // Space handling
+            // Space handling - NewQuote for Results, Restart for Testing
             (KeyCode::Char(' '), _, _) => {
                 if is_complete && state == AppState::Testing {
                     AppAction::Restart
+                } else if is_complete && state == AppState::Results {
+                    AppAction::NewQuote
                 } else {
                     AppAction::TypeChar(' ')
                 }
             }
 
             // Character input during testing
-            (KeyCode::Char(c), KeyModifiers::SHIFT, AppState::Testing) => {
+            (KeyCode::Char(c), mods, AppState::Testing) if mods.contains(KeyModifiers::SHIFT) => {
                 if !is_complete {
                     AppAction::TypeChar(c.to_ascii_uppercase())
                 } else {
@@ -95,8 +109,13 @@ impl InputHandler {
                 }
             }
 
+            // Ctrl+Backspace / Ctrl+H shows history (must be before general backspace arms)
+            (KeyCode::Backspace, mods, _) if mods.contains(KeyModifiers::CONTROL) => {
+                AppAction::ShowHistory
+            }
+
             // Backspace handling
-            (KeyCode::Backspace, KeyModifiers::ALT, AppState::Testing) => {
+            (KeyCode::Backspace, mods, AppState::Testing) if mods.contains(KeyModifiers::ALT) => {
                 if !is_complete {
                     AppAction::DeleteWord
                 } else {

@@ -180,6 +180,9 @@ impl App {
             AppState::Testing if self.session.is_complete() => {
                 ResultsView::draw(frame, &self.session, &self.quote_source, &self.theme);
             }
+            AppState::Results => {
+                ResultsView::draw(frame, &self.session, &self.quote_source, &self.theme);
+            }
             AppState::Testing => {
                 self.typing_view.draw(
                     frame,
