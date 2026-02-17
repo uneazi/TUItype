@@ -3,7 +3,13 @@ use ratatui::{buffer::Buffer, layout::Rect, style::Style};
 use crate::keyboard::KeyboardLayout;
 use crate::theme::Theme;
 
-pub fn render_keyboard(area: Rect, buf: &mut Buffer, current_key: Option<char>, theme: &Theme) {
+pub fn render_keyboard(
+    area: Rect,
+    buf: &mut Buffer,
+    current_key: Option<char>,
+    pressed_keys: &[char],
+    theme: &Theme,
+) {
     if area.width < 50 || area.height < 11 {
         return;
     }
@@ -75,15 +81,12 @@ pub fn render_keyboard(area: Rect, buf: &mut Buffer, current_key: Option<char>, 
                 .map(|c| c.to_ascii_lowercase() == key_char.to_ascii_lowercase())
                 .unwrap_or(false);
 
-            let is_home = layout.is_home_row(key_char);
+            let is_pressed = !is_current
+                && pressed_keys
+                    .iter()
+                    .any(|&c| c.to_ascii_lowercase() == key_char.to_ascii_lowercase());
 
-            let bg = if is_current {
-                theme.current_key_highlight
-            } else if is_home {
-                theme.home_row_color
-            } else {
-                theme.keyboard_key
-            };
+            let is_home = layout.is_home_row(key_char);
 
             let finger_fg = match key_def.finger {
                 crate::keyboard::Finger::Pinky => theme.finger_pinky,
@@ -95,6 +98,14 @@ pub fn render_keyboard(area: Rect, buf: &mut Buffer, current_key: Option<char>, 
                 crate::keyboard::Finger::Thumb => theme.finger_thumb,
             };
 
+            let bg = if is_current {
+                theme.current_key_highlight
+            } else if is_pressed {
+                finger_fg
+            } else {
+                theme.keyboard_key
+            };
+
             // Render key background
             for dy in 0..key_height as i32 {
                 for dx in 0..key_width {
@@ -103,8 +114,23 @@ pub fn render_keyboard(area: Rect, buf: &mut Buffer, current_key: Option<char>, 
                     if py < (area.y + area.height) as i32 && px < area_right && px >= area.x as i32
                     {
                         if let Some(cell) = buf.cell_mut((px as u16, py as u16)) {
-                            cell.set_char(' ');
-                            cell.set_style(Style::default().bg(bg).fg(theme.keyboard_key_text));
+                            let is_left_edge = dx == 0;
+                            let is_right_edge = dx == key_width - 1;
+
+                            let (char_to_render, bg_color, fg_color) = if is_current {
+                                if is_left_edge {
+                                    ('|', theme.keyboard_key, finger_fg)
+                                } else if is_right_edge {
+                                    ('|', theme.keyboard_key, finger_fg)
+                                } else {
+                                    (' ', theme.keyboard_key, theme.keyboard_key_text)
+                                }
+                            } else {
+                                (' ', bg, theme.keyboard_key_text)
+                            };
+
+                            cell.set_char(char_to_render);
+                            cell.set_style(Style::default().bg(bg_color).fg(fg_color));
                         }
                     }
                 }
@@ -121,15 +147,16 @@ pub fn render_keyboard(area: Rect, buf: &mut Buffer, current_key: Option<char>, 
                         if px < area_right && px >= area.x as i32 {
                             if let Some(cell) = buf.cell_mut((px as u16, y)) {
                                 cell.set_char(ch);
+                                let mut modifiers = ratatui::style::Modifier::BOLD;
+                                if is_home {
+                                    modifiers |= ratatui::style::Modifier::UNDERLINED;
+                                }
+                                let label_bg = if is_current { theme.keyboard_key } else { bg };
                                 cell.set_style(
                                     Style::default()
-                                        .bg(bg)
-                                        .fg(if is_current {
-                                            theme.keyboard_bg
-                                        } else {
-                                            finger_fg
-                                        })
-                                        .add_modifier(ratatui::style::Modifier::BOLD),
+                                        .bg(label_bg)
+                                        .fg(if is_current { finger_fg } else { finger_fg })
+                                        .add_modifier(modifiers),
                                 );
                             }
                         }

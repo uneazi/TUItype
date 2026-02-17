@@ -16,10 +16,8 @@ pub struct Theme {
     pub title_color: Color,
     pub success_color: Color,
     // Keyboard colors
-    pub keyboard_bg: Color,
     pub keyboard_key: Color,
     pub keyboard_key_text: Color,
-    pub home_row_color: Color,
     pub current_key_highlight: Color,
     pub finger_pinky: Color,
     pub finger_ring: Color,
@@ -56,10 +54,8 @@ impl Theme {
             border_color: Color::Cyan,
             title_color: Color::Cyan,
             success_color: Color::Green,
-            keyboard_bg: Color::Rgb(30, 30, 30),
             keyboard_key: Color::Rgb(45, 45, 45),
             keyboard_key_text: Color::White,
-            home_row_color: Color::Rgb(70, 70, 120),
             current_key_highlight: Color::Yellow,
             finger_pinky: Color::Rgb(255, 100, 100),
             finger_ring: Color::Rgb(255, 180, 100),
@@ -84,10 +80,8 @@ impl Theme {
             border_color: Color::Blue,
             title_color: Color::Blue,
             success_color: Color::Green,
-            keyboard_bg: Color::Rgb(240, 240, 240),
             keyboard_key: Color::Rgb(220, 220, 220),
             keyboard_key_text: Color::Black,
-            home_row_color: Color::Rgb(180, 180, 220),
             current_key_highlight: Color::Rgb(255, 100, 0),
             finger_pinky: Color::Rgb(200, 80, 80),
             finger_ring: Color::Rgb(200, 140, 60),
@@ -112,10 +106,8 @@ impl Theme {
             border_color: Color::Rgb(136, 192, 208), // Nord8 - cyan
             title_color: Color::Rgb(136, 192, 208),  // Nord8
             success_color: Color::Rgb(163, 190, 140), // Nord14
-            keyboard_bg: Color::Rgb(46, 52, 64),     // Nord1
             keyboard_key: Color::Rgb(67, 76, 94),    // Nord2
             keyboard_key_text: Color::Rgb(216, 222, 233), // Nord6
-            home_row_color: Color::Rgb(129, 161, 193), // Nord7
             current_key_highlight: Color::Rgb(136, 192, 208), // Nord8
             finger_pinky: Color::Rgb(191, 97, 106),  // Nord11
             finger_ring: Color::Rgb(235, 203, 139),  // Nord13
@@ -140,10 +132,8 @@ impl Theme {
             border_color: Color::Rgb(189, 147, 249),   // Purple
             title_color: Color::Rgb(189, 147, 249),    // Purple
             success_color: Color::Rgb(80, 250, 123),   // Green
-            keyboard_bg: Color::Rgb(40, 42, 54),       // Background
             keyboard_key: Color::Rgb(68, 71, 90),      // Current line
             keyboard_key_text: Color::Rgb(248, 248, 242), // Foreground
-            home_row_color: Color::Rgb(189, 147, 249), // Purple
             current_key_highlight: Color::Rgb(255, 121, 198), // Pink
             finger_pinky: Color::Rgb(255, 85, 85),     // Red
             finger_ring: Color::Rgb(241, 250, 140),    // Yellow
@@ -168,10 +158,8 @@ impl Theme {
             border_color: Color::Rgb(38, 139, 210),  // Blue
             title_color: Color::Rgb(38, 139, 210),   // Blue
             success_color: Color::Rgb(133, 153, 0),  // Green
-            keyboard_bg: Color::Rgb(7, 54, 66),      // Base02
             keyboard_key: Color::Rgb(88, 110, 117),  // Base01
             keyboard_key_text: Color::Rgb(253, 246, 227), // Base3
-            home_row_color: Color::Rgb(38, 139, 210), // Blue
             current_key_highlight: Color::Rgb(181, 137, 0), // Yellow
             finger_pinky: Color::Rgb(220, 50, 47),   // Red
             finger_ring: Color::Rgb(181, 137, 0),    // Yellow
@@ -196,10 +184,8 @@ impl Theme {
             border_color: Color::Rgb(116, 199, 236), // sapphire-ish #74c7ec[web:180]
             title_color: Color::Rgb(180, 190, 254),  // lavender #b4befe
             success_color: Color::Rgb(166, 227, 161), // green  #a6e3a1
-            keyboard_bg: Color::Rgb(30, 30, 46),     // base
             keyboard_key: Color::Rgb(49, 50, 68),    // surface0
             keyboard_key_text: Color::Rgb(205, 214, 244), // text
-            home_row_color: Color::Rgb(137, 180, 250), // blue
             current_key_highlight: Color::Rgb(249, 226, 175), // yellow
             finger_pinky: Color::Rgb(243, 139, 168), // red
             finger_ring: Color::Rgb(249, 226, 175),  // yellow

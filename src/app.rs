@@ -49,6 +49,8 @@ pub struct App {
     pub last_result: Option<TestResult>,
     theme: Theme,
     pub show_keyboard: bool,
+    pressed_keys: Vec<char>,
+    pressed_key_timestamp: Option<Instant>,
 }
 
 impl App {
@@ -99,6 +101,8 @@ impl App {
             last_result: None,
             theme,
             show_keyboard: false,
+            pressed_keys: Vec::new(),
+            pressed_key_timestamp: None,
         })
     }
 
@@ -114,12 +118,28 @@ impl App {
         }
 
         match (key.code, key.modifiers) {
+            (KeyCode::Char(c), KeyModifiers::SHIFT) => {
+                let expected = self.quote.chars().nth(self.typed.len());
+                let typed_char = c.to_ascii_uppercase();
+                if expected != Some(typed_char) {
+                    self.mistakes += 1;
+                }
+                self.typed.push(typed_char);
+                self.pressed_keys.clear();
+                self.pressed_keys.push(typed_char);
+                self.pressed_keys.push('⇧');
+                self.pressed_key_timestamp = Some(Instant::now());
+            }
+
             (KeyCode::Char(c), _) => {
                 let expected = self.quote.chars().nth(self.typed.len());
                 if expected != Some(c) {
                     self.mistakes += 1;
                 }
                 self.typed.push(c);
+                self.pressed_keys.clear();
+                self.pressed_keys.push(c);
+                self.pressed_key_timestamp = Some(Instant::now());
             }
 
             (KeyCode::Backspace, KeyModifiers::ALT) => {
@@ -166,6 +186,13 @@ impl App {
             self.last_tick = now;
             self.recalc_metrics();
             self.update_wpm_animation();
+        }
+
+        if let Some(timestamp) = self.pressed_key_timestamp {
+            if now.duration_since(timestamp) >= Duration::from_millis(120) {
+                self.pressed_keys.clear();
+                self.pressed_key_timestamp = None;
+            }
         }
     }
 
@@ -291,6 +318,8 @@ impl App {
         self.last_tick = Instant::now();
         self.wpm_history.clear();
         self.mistakes = 0;
+        self.pressed_keys.clear();
+        self.pressed_key_timestamp = None;
     }
 
     pub fn restart(&mut self) {
@@ -523,6 +552,7 @@ impl App {
                 chunks[2],
                 frame.buffer_mut(),
                 self.get_next_char(),
+                &self.pressed_keys,
                 &self.theme,
             );
         }
